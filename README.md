@@ -77,5 +77,5 @@ you can use the tsrchd_pardiso implementation, which is approximately
 If you use our software, data, or results in your research, please cite:
 
 Stivala, A., Wirth, A. and Stuckey, P.,
-[Tableau-based protein substructure search using quadratic programming](http://www.biomedcentral.com/1471-2105/10/153/abstract)BMC Bioinformatics 2009, 10:153
+[Tableau-based protein substructure search using quadratic programming](http://www.biomedcentral.com/1471-2105/10/153/abstract )BMC Bioinformatics 2009, 10:153
 
