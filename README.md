@@ -1,6 +1,9 @@
 Tableau-based protein substructure search using quadratic programming
 # Tableau-based protein substructure search using quadratic programming
 
+Despite what GitHub might say, this code is primarily FORTRAN-77
+(with some Python, shell, and R scripts).
+
 Imported from https://sites.google.com/site/alexdstivala/home/qpprotein
 
 This software can be used freely for any purpose, modified, redistributed, etc.
