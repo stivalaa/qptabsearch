@@ -1,0 +1,270 @@
+#!/usr/bin/env python
+                                                                              #
+#
+# rocnh3d.py - Evaluate tableaux search against Nh3D data set
+#
+# File:    rocnh3d.py
+# Author:  Alex Stivala
+# Created: September 2008
+#
+# Evaluate QP tableau search or MSVNS4MaxCMO for all against all matching
+# for the Nh3D data set (Thiruv et al 2005 BMC Struct Biol 5:12)
+# as per Pelta et all 2008 BMC Bioinformatics 9:161
+#
+# $Id: rocnh3d.py.OBSOLETE 1946 2008-10-04 05:14:43Z astivala $
+# 
+                                                                              #
+
+"""
+Evaluate false negatives using CATH architecture id at cutoff (rank/score),
+domains that are not included above the cuttoff but are in same arch id
+are false negatives.
+
+Output is to stdout in a format that is easily usable in R with the
+read.table() function, i.e. we use '#' to prefix lines not to be parsed,
+and have a header line with suitable R variable names for the columns.
+
+See usage in docstring for main()
+
+"""
+
+import warnings # so we can suppress the annoying tempnam 'security' warning
+import sys,os,glob
+import getopt
+
+from cathmap import CATHMAP
+from tsevalutils import compute_auc,parse_searchresult
+
+#-----------------------------------------------------------------------------
+#
+# Constants
+#
+#-----------------------------------------------------------------------------
+
+# list of different CATH architectures 
+ARCH_LIST= ["1.10", "1.20", "2.10", "2.170", "2.30", "2.40", "2.60", "2.70", "3.10", "3.20", "3.30", "3.40", "3.60", "3.90", "4.10"]
+
+# List of query CATH identifiers, from the Additional File 1 spreadsheet
+# for Pelta et al 2008
+QUERY_LIST=["1.10.1040", "1.10.1320", "1.10.533", "1.10.645", "1.20.1280", "1.20.210", "1.20.5", "1.20.840", "2.10.25", "2.10.260", "2.10.270", "2.10.90", "2.170.16", "2.170.230", "2.170.290", "2.170.40", "2.30.110", "2.30.18", "2.30.230", "2.30.29", "2.30.40", "2.40.155", "2.40.160", "2.40.180", "2.40.340", "2.40.50", "2.60.130", "2.60.260", "2.60.420", "2.60.90", "2.70.100", "2.70.180", "2.70.220", "2.70.98", "3.10.105", "3.10.170", "3.10.270", "3.10.330", "3.10.400", "3.20.120", "3.20.140", "3.20.19", "3.20.70", "3.20.90", "3.30.1530", "3.30.1690", "3.30.240", "3.30.559", "3.30.560", "3.30.60", "3.30.990", "3.40.1210", "3.40.1380", "3.40.225", "3.40.720", "3.60.100", "3.60.120", "3.60.20", "3.60.40", "3.60.90", "3.90.1280", "3.90.1300", "3.90.1350", "3.90.1580", "3.90.510", "3.90.850", "4.10.1080", "4.10.1090", "4.10.220", "4.10.260", "4.10.480", "4.10.540", "4.10.790"]
+
+#-----------------------------------------------------------------------------
+#
+# Function definitions
+#
+#-----------------------------------------------------------------------------
+
+
+def compute_tpr(cutoff, goldstd_dict, searchresult_dict):
+    """
+    Compute the true positive rate (TPR) at cutoff value given.
+
+    This is the method used in Sam et al 2006 BMC Bioinformatics 7:206
+
+    Parameters:
+        cutoff - value above which score is considered to classify as +ve
+       goldstd_dict  - dict { pdbid : list} where list is
+                       list of identifiers that each query
+                       should match i.e. the 'gold standard' list of 
+                       hits for  query pdbid
+       searchresult_dict - dict { pdbid : list } where list is
+                       list of (score, domainid), sorted by descending score
+                       for query pdbid
+    Return value:
+        TPR at cutoff
+    """
+    assert(len(goldstd_dict) == len(searchresult_dict))
+
+    num_domains = len(CATHMAP)
+
+    tpdom_total = 0
+    for fold in ARCH_LIST: # fold means cath architecture here
+        queryids_in_arch = [ cathid for cathid in QUERY_LIST if
+                             cathid.split('.')[0] == fold.split('.')[0] and
+                             cathid.split('.')[1] == fold.split('.')[1] ]
+        for queryid in queryids_in_arch:
+            tpcount = 0
+            num_domains_in_fold = len(goldstd_dict[queryid])
+            for dbid in goldstd_dict[queryid]:
+                found = False
+                for (score, searchid) in searchresult_dict[queryid]:
+                    if searchid == dbid:
+                        found = True
+                        break
+#                if found and queryid != dbid and score >= cutoff:
+                if found  and score >= cutoff:
+                    tpcount += 1
+            if verbose:
+                sys.stderr.write('tpcount = %d for %s at cutoff = %d\n' %
+                                  (tpcount, queryid, cutoff))
+#            tpdom = float(tpcount) / float(num_domains_in_fold - 1)
+            tpdom = float(tpcount) / float(num_domains_in_fold)
+            tpdom_total += tpdom
+#    sys.stderr.write('tpdom_total = %d num_domains = %d\n' %(tpdom_total,num_domains))
+    tpr = tpdom_total / len(QUERY_LIST)
+    
+    if verbose:
+        sys.stderr.write('TPR at ' + str(cutoff) + ' = ' + str(tpr) + '\n')
+
+    return tpr
+
+
+def compute_fpr(cutoff, goldstd_dict, searchresult_dict):
+    """
+    Compute the false positive rate (FPR) at cutoff value given.
+
+    This is the method used in Sam et al 2006 BMC Bioinformatics 7:206
+
+    Parameters:
+        cutoff - value above which score is considered to classify as +ve
+       goldstd_dict  - dict { pdbid : list} where list is
+                       list of identifiers that each query
+                       should match i.e. the 'gold standard' list of 
+                       hits for  query pdbid
+       searchresult_dict - dict { pdbid : list } where list is
+                       list of (score, domainid), sorted by descending score
+                       for query pdbid
+    Return value:
+        FPR at cutoff
+    """
+    assert(len(goldstd_dict) == len(searchresult_dict))
+
+    num_domains = len(CATHMAP)
+
+    fpdom_total = 0
+    for fold in ARCH_LIST: # fold means cath architecture here
+        queryids_in_arch = [ cathid for cathid in QUERY_LIST if
+                             cathid.split('.')[0] == fold.split('.')[0] and
+                             cathid.split('.')[1] == fold.split('.')[1] ]
+        cathids_in_arch = [ cathid for cathid in CATHMAP.itervalues() if
+                             cathid.split('.')[0] == fold.split('.')[0] and
+                             cathid.split('.')[1] == fold.split('.')[1] ]
+        num_domains_in_fold = len(cathids_in_arch)
+        for queryid in queryids_in_arch:
+            fpcount = 0
+            ids_not_in_fold = [ cathid for cathid in CATHMAP.iterkeys()
+                                if cathid not in goldstd_dict[queryid] ]
+            for dbid in ids_not_in_fold:
+                found = False
+                for (score, searchid) in searchresult_dict[queryid]:
+                    if searchid == dbid:
+                        found = True
+                        break
+                if found and score >= cutoff:
+                    fpcount += 1
+            if verbose:
+                sys.stderr.write('fpcount = %d for %s at cutoff = %d\n' %
+                                  (fpcount, queryid, cutoff))
+            fpdom = float(fpcount) / float(num_domains - num_domains_in_fold)
+            fpdom_total += fpdom
+    fpr = fpdom_total / len(QUERY_LIST)
+    
+    if verbose:
+        sys.stderr.write('FPR at ' + str(cutoff) + ' = ' + str(fpr) + '\n')
+
+    return fpr
+
+#-----------------------------------------------------------------------------
+#
+# Main
+#
+#-----------------------------------------------------------------------------
+    
+def usage(progname):
+    """
+    Print usage message and exit
+    """
+    
+    sys.stderr.write("Usage: " +progname + " [-rv] "
+                     "  <outdir>\n")
+    sys.stderr.write('  -r higher scores are better\n')
+    sys.stderr.write('  -v verbose messages to stderr\n')
+    sys.exit(1)
+
+    
+def main():
+    """
+    main for rocnh3d.py
+
+    Usage: rocnh3d.py [-rv]   <outdir>
+
+    
+    -v turns on debug output to stderr
+    -r higher scores are better (rather than default of more negative
+       scores better)
+
+    <outdir> is the directory containing output files as generated
+    by tsrchd_sparse (qptabmatch_allall.py) or msvns4maxcmo_allall.py 
+
+    The table of positive and false positive rates is printed to stdout.
+    """
+    global verbose
+    verbose = False
+    reverseflag = False
+    
+    try:
+        opts,args = getopt.getopt(sys.argv[1:], "vr?")
+    except:
+        usage(os.path.basename(sys.argv[0]))
+    for opt,arg in opts:
+        if opt == "-v": # verbose
+            verbose = True # this module only
+        elif opt == "-r": # reversed: higher scores better
+            reverseflag = True
+        else:
+            usage(os.path.basename(sys.argv[0]))
+
+    if len(args) != 1:
+        usage(os.path.basename(sys.argv[0]))
+
+    outdir = args[0]
+
+    # build dict of search results, one for each query
+    # and corresponding dict of gold standard results
+    searchresult_dict = {}
+    goldstd_dict = {}
+    for result_file in glob.glob(os.path.join(outdir, '*.out')):
+        query_id = os.path.splitext(os.path.basename(result_file))[0].lower()
+        result_fh = open(result_file)
+        (searchresult,commentlist) = parse_searchresult(result_fh, reverseflag)
+        result_fh.close()
+        searchresult_dict[query_id] = searchresult
+
+        # get the gold standard as the list of 'compreseed' CATH ids
+        # that have same architecture as query
+        query_id_split = query_id.split('.')
+        query_class = query_id_split[0]
+        query_arch = query_id_split[1]
+        goldstd_ids = []
+        for (compressed_id, cathid) in CATHMAP.iteritems():
+            cathid_split = cathid.split('.')
+            cathid_class = cathid_split[0]
+            cathid_arch = cathid_split[1]
+            if cathid_class == query_class and cathid_arch == query_arch:
+                goldstd_ids.append(compressed_id)
+
+        goldstd_dict[query_id] = goldstd_ids
+
+
+    sys.stdout.write('#' + ' '.join(sys.argv) + '\n') #identifying info about us
+    
+    fprlist = []
+    tprlist = []
+    sys.stdout.write('score     tpr     fpr\n')
+    sys.stdout.write('#--------------------\n')
+    for c in xrange(0, 900): # FIXME cutoff rnage
+        tpr = compute_tpr(c, goldstd_dict, searchresult_dict)
+        fpr = compute_fpr(c, goldstd_dict, searchresult_dict)
+        sys.stdout.write('%5.1f   %5.3f   %5.3f\n' % (c, tpr, fpr))
+        tprlist.append(tpr)
+        fprlist.append(fpr)
+    fprlist.reverse()
+    tprlist.reverse()
+    auc = compute_auc(fprlist, tprlist)
+    sys.stdout.write('\n')
+    sys.stdout.write('# AUC = %5.3f\n' % auc)
+            
+if __name__ == "__main__":
+    warnings.filterwarnings('ignore', 'tempnam', RuntimeWarning) 
+    main()
+
