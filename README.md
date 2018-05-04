@@ -22,11 +22,6 @@ tableaux and distance matrix database in ASCII format created with
 the convdb2.py script.
 These scripts are included with the source code.
 
-[Combined tableau and distance matrix database for ASTRAL SCOP 1.73 95% sequence identity subset](tableauxdistmatrixdb.ascii.gz)
-
-[Tableau database for ASTRAL SCOP 1.73 95% sequence identity subset](tableauxdb.ascii.gz)
-
-[Numeric database for ASTRAL SCOP 1.73 95% sequence identify subset](tableauxdb.numeric.ascii.gz)
 
 ## Randomly permuted tableaux
 
