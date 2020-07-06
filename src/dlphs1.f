@@ -16,7 +16,7 @@
 * This appears to be faster than the sparse version (spphs1.f) which
 * uses UMFPACK though.
 *
-* $Id: dlphs1.f 2064 2009-02-24 06:11:28Z astivala $
+* $Id: dlphs1.F 2969 2009-11-22 01:29:39Z astivala $
 *=======================================================================
 
       subroutine dlphs1(A, lda, m, n, avec, b, x, y, z, ob, alpha,

@@ -36,7 +36,7 @@
 * database, where the identifier and order and tableau have already
 * been read by subroutine RDTABD.
 *
-* $Id: rdistm.f 1879 2008-09-09 06:11:24Z astivala $
+* $Id: rdistm.F 2969 2009-11-22 01:29:39Z astivala $
 *=======================================================================
 
       subroutine rdistm(nunit, dmat, ldo, n)
@@ -99,8 +99,6 @@
             dmat(j,i) = dmat(i,j)
  40      continue
  50   continue
-
- 99   continue
       return
       end
 

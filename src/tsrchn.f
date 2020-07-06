@@ -16,6 +16,13 @@
 *
 * just as in tabesarchqpml.py, the original Python implementation.
 *
+* just as in tabesarchqpml.py, the original Python implementation.
+* If the "-t" (times) command line option is given, the format is
+*
+* name score cputime
+*
+* cputime is the CPU time in seconds for solving that tableau matching probelm.
+*
 * This file is a program not a subroutine.
 * Both the name of the database file to read, and the actual
 * query tableau are read from stdin. 
@@ -52,9 +59,20 @@
 * F6.3 with a space between each on a line, and one line
 * per row of matrix.
 *
+* Following the tableau is the distance matrix.
+* Each row is a row of the distance matrix, lower triangle
+* only (since it is symmetric).
+* The diagonal entries are meaningless (self-distance)
+* and are included instead to specify the SSE type, with
+* the sames codes as the Omega matrix.
+* 
+* Each entry in matrix is in Angstroms format
+* F6.3 with a space between each on a line, and one line
+* per row of matrix.
+* 
 * E.g.:
 *
-* /local/charikar/astivala/tableauxdb/astral/tableauxdb.numeric.ascii
+* /local/charikar/astivala/tableauxdb/astral/tableauxdb.numeric.dmat.ascii
 *  T F F
 * D1UBIA_    6
 *  0.000 
@@ -63,10 +81,16 @@
 *  2.040 -1.140  2.080  0.000
 * -1.260  1.560 -1.110  2.990  0.000
 * -0.590  2.100 -1.230  2.570 -0.720  0.000
+*  0.000 
+*  4.501  0.000 
+* 11.662 10.386  1.000 
+* 10.588 13.738 11.815  0.000 
+* 15.025 18.692 17.143  6.466  0.000 
+*  7.549 11.072 12.248  4.583  9.903  0.000 
 *
 *
 * 
-* $Id: tsrchn.f 2064 2009-02-24 06:11:28Z astivala $
+* $Id: tsrchn.F 3240 2010-01-18 03:28:54Z alexs $
 *=======================================================================
 
       program tsrchn
@@ -88,28 +112,49 @@
       integer qn,dbn,info,j
       character dbfile*1024,qid*8,dbid*8
       logical ltype,lorder,lsoln
+      logical lvbose
       double precision score
+      real start,finish
+      character*32 arg
 *     ..
 *     .. Local Arrays ..
       double precision qtab(maxdim,maxdim),dbtab(maxdim,maxdim)
+      double precision qdmat(maxdim,maxdim),dbdmat(maxdim,maxdim)
       double precision soln(maxdim*maxdim+maxdim+maxdim)
       
 *     ..
 *     .. Intrinsic Functions ..
 !      intrinsic Time,CTime
+#if !defined(__PORTLAND_COMPILER)
+      intrinsic CPU_TIME,GETARG
+#endif
 *     ..
 *     .. External Subroutines and Functions ..
-      external tmatn,rdtabn
+      external tmatn,rdtabn,rdistm
+#if defined(__PORTLAND_COMPILER)
+      external iargc
+      integer iargc
+#endif
 
 *     ..
 *     .. Executable Statements ..
 *
+      lvbose = .false.
+      if (iargc() .ge. 1) then
+         call getarg(1, arg)
+         if (arg .eq. '-t') then
+            lvbose = .true.
+         endif
+      endif
+      
       read (*,'(a1024)') dbfile
       read (*,'(l1,1x,l1,1x,l1)') ltype,lorder,lsoln
       call rdtabn(inunit, qtab, maxdim, qn, qid)
-
-      write(*, 5) ltype,lorder
- 5    format('# TSRCHN LTYPE = ',l1,' LORDER = ',l1, ' LSOLN = ',l1)
+      call rdistm(inunit, qdmat, maxdim, qn)
+      
+      write(*, 5) ltype,lorder,lsoln,lvbose
+ 5    format('# TSRCHN LTYPE = ',l1,' LORDER = ',l1, ' LSOLN = ',l1,
+     $     ' LVBOSE = ',l1)
       write(*, 6) qid
  6    format('# QUERY ID = ',a8)
       write(*, 7) dbfile
@@ -120,15 +165,23 @@
       open(dbunit, file=dbfile, status='OLD')
  10   if (.true.) then
          call rdtabn(dbunit, dbtab, maxdim, dbn, dbid)
+         call rdistm(dbunit, dbdmat, maxdim, dbn)
+         call CPU_TIME(start)
          call tmatn(qtab, maxdim, qn, dbtab, maxdim, dbn, 
-     $        ltype, lorder,
+     $        ltype, lorder, qdmat, dbdmat,
      $        score, soln, info)
+         call CPU_TIME(finish)
          if (info .ne. 0) then
             write(*,20) dbid,info
  20         format(a8,1x,'ERROR, INFO = ',i4)
          else
-            write(*,30) dbid,score
- 30         format(a8,f12.4)
+            if (lvbose) then
+               write(*,25) dbid,score,finish-start
+ 25            format(a8,f12.4,f12.3)
+            else
+               write(*,30) dbid,score
+ 30            format(a8,f12.4)
+            endif
             if (lsoln) then
                write(*,40), (soln(j), j = 1, qn*dbn+qn+dbn)
  40            format (f8.4)

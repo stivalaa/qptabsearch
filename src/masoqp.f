@@ -1,18 +1,19 @@
 *=======================================================================
-* File:    pasoqp.f
+* File:    masoqp.f
 * Author:  Alex Stivala, based on spsolqp.m by Prof. Yinyu Ye.
 * Created: July 2008
 *
-* This is a reimplementation using FORTRAN-77 and PARDISO
+* This is a reimplementation using FORTRAN-77 and HSL MA57
 * of spsolqp.m from Prof. Yinyu Ye
 * http://www.stanford.edu/~yyye/matlab/spsolqp.m
-
-* This uses sparse symmetric linear solver PARDISO
-* in the Intel Math Kernel Library (MKL) (10.1.0).
+*
+* This uses sparse symmetric linear solver MA57 from HSL 2007
+* http://hsl.rl.ac.uk/hsl2007/distrib/hsl2007.html
+* needs registration as a registred researcher
 *
 * LAPACK and BLAS are also required.
 *
-* $Id: pasoqp.F 3240 2010-01-18 03:28:54Z alexs $
+* $Id: masoqp.F 2970 2009-11-22 01:47:55Z astivala $
 *=======================================================================
 
       subroutine solvqp(Q, ldq, A, lda, m, n,  b, c, x, y, info)
@@ -29,8 +30,8 @@
 *     This program is the implementation of the interior ellipsoidal
 *     trust region and barrier function algorithm with dual solution
 *     updating technique in the standard QP form. Two phases are used:
-*     the first uses PAPHS1 find an interior feasible point and the
-*     second uses PAPHS2 to find a local optimal solution.
+*     the first uses MAPHS1 find an interior feasible point and the
+*     second uses MAPHS2 to find a local optimal solution.
 *
 *  Technical Reference
 *  
@@ -104,7 +105,7 @@
 *        =  0 : successful exit
 *        = -1 : phase 1 failed 
 *        = -2 : sizes exceed maximum dimensions 
-*        = -3 : a PARDISO routine failed
+*        = -3 : an MA57 routine failed
 *        = -4 : phase 2 failed
 *        = -5 : max number of iterations exceeded
 *        = -6 : numer of nonzero entries exceeds maximum dimensioned for
@@ -133,6 +134,15 @@
       integer nzmax
       parameter(nzmax = 10000000)
 
+*     MA57 workspace size
+      integer           lkeep
+      parameter         (lkeep = 5 *(mmax+nmax) + nzmax+nzmax+42)
+      integer iworklen,lwork,lfact,lifact
+      parameter(iworklen = 5*mmax*nmax)
+      parameter(lwork = mmax*nmax)
+      parameter(lfact = 5*mmax*nmax)
+      parameter(lifact = 5*mmax*nmax)
+
 *     limit on number of iterations
       integer maxiter
       parameter (maxiter = 1000)
@@ -142,38 +152,42 @@
       parameter (neginf=-1.79769d+308)
 *     ..
 *     .. Common block Arrays ..
-*     PARDISO internal solver memory pointer
-      integer*8 pt(64)
-*     lsyfac2 is true after paphs2 symbolic factorization done
-*     lsyfac1 is true after paphs1 symbolic factorization done
+*     lsyfac2 is true after maphs2 symbolic factorization done
+*     lsyfac1 is true after maphs1 symbolic factorization done
       logical lsyfac2,lsyfac1
-      common /pacommon/ pt,lsyfac2,lsyfac1
+      common /macommon/ lsyfac2,lsyfac1
 *     ..
 *     .. Local Scalars ..
       character trans,uplo
       integer i,j,incr,order,iter,ldf,ldxx,ldaa,
      $     ixE
-*     PARDISO variables
-      integer maxfct,mnum,mtype,phase,nrhs,error,msglvl,idum
-      double precision ddum
+*     MA57 variables
+      integer ne,job
 *     other local scalars
       double precision alpha,gap,ob,z,blasa,blasb,lambda,obvalue,
      $     nora,lower,xdotv,cdotx
 *     ..
 *     .. Local Arrays ..
+*     MA57 workspace
+      integer iwork(iworklen)
+      integer icntl(20),mainfo(40)
+      double precision cntl(5),rinfo(20)
+      double precision work(lwork)
+      integer ifact(lifact)
+      double precision fact(lfact)
+      integer keep(lkeep)
+*     others
       double precision avec(mmax),zhis(maxiter),comp(mmax+nmax)
-*     PARDISO parameter block
-      integer iparm(64)
-*     sparse storage for matrix E for PARDISO in compressed row format
-      integer Ep(nmax+mmax+1),Ei(nzmax)
-      double precision Ex(nzmax)
-*     workspace arrays for PAPHS1
-*     F (each column of F separately), dx, ipiv,v reused for PAPHS2
-*     v,ipiv,E and F are also used as working storage in PASOQP itself
+*     sparse storage for matrix E for MA57 in HSL sparse symmetric format
+      integer Eirn(nzmax),Ejcn(nzmax)
+      double precision Ea(nzmax)
+*     workspace arrays for MAPHS1
+*     F (each column of F separately), dx, ipiv,v reused for MAPHS2
+*     v,ipiv,E and F are also used as working storage in MASOQP itself
       double precision dx(nmax), F(mmax+nmax, 2)
       double precision  u(nmax+2), v(nmax+2),
      $     umzv(nmax+2), obz(nmax+2), y1(mmax+nmax), y2(mmax+nmax)
-*     additional workspace arrays for PAPHS2
+*     additional workspace arrays for MAPHS2
       double precision XX(nmax,nmax),AA(mmax,nmax)
 *     ..
 *     .. Intrinsic Functions ..
@@ -185,12 +199,12 @@
 #endif
 *     ..
 *     .. External Subroutines and Functions ..
-      external paphs1,paphs2,drecip,demvv
+      external maphs1,maphs2,drecip,demvv
       double precision dvmin,dvmax
       external dvmin,dvmax
       external rand55
-*     PARDISO subroutines
-      external pardiso
+*     MA57 subroutines
+      external MA57ID,MA57BD,MA57CD
 *     BLAS level 1 subroutines/functions
       external dcopy,dscal,daxpy
       double precision ddot
@@ -219,41 +233,8 @@
       
 C      call srand(1)
 
-*     set parameters for PARDISO
-      do 1,i = 1, 64
-         iparm(i) = 0
- 1    continue
-      iparm(1) = 1 ! no solver default
-      iparm(2) = 2 ! fill-in reordering from METIS
-      iparm(3) = 1 ! numbers of processors
-      iparm(4) = 0 ! no iterative-direct algorithm
-      iparm(5) = 0 ! no user fill-in reducing permutation
-      iparm(6) = 0 ! =0 solution on the first n compoments of x
-      iparm(7) = 0 ! not in use
-      iparm(8) = 2 ! numbers of iterative refinement steps
-      iparm(9) = 0 ! not in use
-      iparm(10) = 13 ! perturbe the pivot elements with 1E-13
-      iparm(11) = 1 ! use nonsymmetric permutation and scaling MPS
-      iparm(12) = 0 ! not in use
-      iparm(13) = 0 ! maximum weighted matching algorithm is switched-off
-      iparm(14) = 0 ! Output: number of perturbed pivots
-      iparm(15) = 0 ! not in use
-      iparm(16) = 0 ! not in use
-      iparm(17) = 0 ! not in use
-      iparm(18) = 0 ! Output: number of nonzeros in the factor LU
-      iparm(19) = 0 ! Output: Mflops for LU factorization
-      iparm(20) = 0 ! Output: Numbers of CG Iterations
-      error = 0 ! initialize error flag
-      msglvl = 0 ! print statistical information
-      mtype = -2 ! symmetric, indefinite
-      maxfct = 1
-      mnum = 1
-      nrhs = 1
-C.. Initiliaze the internal solver memory pointer. This is only
-C necessary for the FIRST call of the PARDISO solver.
-      do 2,i = 1, 64
-         pt(i) = 0
- 2    continue
+*     set parameters for MA57
+      call MA57ID(cntl, icntl)
 
       lsyfac2 = .false.
       lsyfac1 = .false.
@@ -282,8 +263,9 @@ C necessary for the FIRST call of the PARDISO solver.
 
       gap = ob - z
  500  if (gap .ge. toler) then
-         call paphs1(A, lda, m, n, avec, b, x, y, z, ob, alpha,
-     $        dx, Ep, Ei, Ex, nzmax, F, ldf, u, v, umzv, obz, 
+         call maphs1(A, lda, m, n, avec, b, x, y, z, ob, alpha,
+     $        dx, Eirn, Ejcn, Ea, lkeep, keep,
+     $        nzmax, F, ldf, u, v, umzv, obz, 
      $        y1, y2, info)
          if (info .ne. 0) then
             write(*,*) 'phase 1 failed'
@@ -332,18 +314,12 @@ C necessary for the FIRST call of the PARDISO solver.
 *
 *     E is square, symmetric, and sparse. But it is not necessarily
 *     positive definite so we cannot always use CHOLMOD to efficiently
-*     solve the system. We therefore use PARDISO with sparse matrix
-*     E stored in compressed row format.
-*     In this format, the nonzero entries are stored (row major)
-*     in Ex. For each row the column indices of the nonzero entries
-*     are stored in Ei. For each row k, Ep(k) and Ep(k+1)-1 are
-*     respecitively the first and last indices of column numbers in Ei
-*     and values in Ex for that column.
-*     NB PARDISO uses 1-based indexing in Ep and Ei.
-*     No duplicate row indices are allowed, and row indicies for each
-*     column must be in ascending order.
-*     Only the upper triangle is stored. Zeros on the diagonal must
-*     be explicitly stored.
+*     solve the system. We therefore use MA57 with sparse matrix E
+*     stored in the HSL2007 MA57 format.  In this format, the i and j
+*     indices of the nonzero entries of E are stored in Eirn and Ejcn
+*     respectively. (Only one triangle is stored). The nonzero values
+*     are stored in Ea, corresponding to the i,j indices in Eirn and
+*     Ejcn. Only the upper triangle is stored.
 * 
 *     If E were positive definite, which can efficiently be tested
 *     for with Cholesky factorization, it could be solved by that means
@@ -354,18 +330,18 @@ C necessary for the FIRST call of the PARDISO solver.
 *
 *     ==================================================================
 
-*     ixE is the current index (FORTRAN 1-based) in 
-*     Ei and Ex.
+*     ixE is the current index in Eirn and Ejcn and Ea
       ixE = 1
-      Ep(1) = 1
       do 730 i = 1, n
-         Ei(ixE) = i
-         Ex(ixE) = 1.0
+         Eirn(ixE) = i
+         Ejcn(ixE) = j
+         Ea(ixE) = 1.0
          ixE = ixE + 1
          do 720 j = 1,m
             if (A(j,i) .ne. 0.0d0) then
-               Ei(ixE) = n + j
-               Ex(ixE) = A(j,i)
+               Eirn(ixE) = i
+               Ejcn(ixE) = n + j
+               Ea(ixE) = A(j,i)
                ixE = ixE +1
                if (ixE .gt. nzmax) then
                   write(*,*) 'Max number of nonzero values exceeded.'
@@ -374,15 +350,8 @@ C necessary for the FIRST call of the PARDISO solver.
                endif
             endif
  720     continue
-         Ep(i+1) = ixE
  730  continue
-*     need to explicitly store the remaining zeros on the diagonal
-      do 760 i = n+1,n+m
-         Ei(ixE) = i
-         Ex(ixE) = 0.0d0
-         ixE = ixE + 1
-         Ep(i+1) = ixE
- 760     continue
+      ne = ixE - 1
       
 *     use y1  as RHS for linear system
       do 800 j = 1, n
@@ -401,16 +370,25 @@ C necessary for the FIRST call of the PARDISO solver.
 
 *     numeric factorization and
 *     solve E*comp=y1 with iterative refinement
-*     NB we are reusing the symbolic factorization done in paphs1
-      phase = 23
-      CALL pardiso (pt, maxfct, mnum, mtype, phase, order, Ex, Ep, Ei,
-     1 idum, nrhs, iparm, msglvl, y1, comp, error)
-      if (error .ne. 0) then
-         write(*,*) 'PARDISO factorization + solve failed, info = ',
-     $        error
+*     NB we are reusing the symbolic factorization done in maphs1
+      CALL MA57BD (order, ne, Ea, fact, lfact, ifact, lifact,
+     $     lkeep, keep, iwork, 
+     $     icntl, cntl, mainfo, rinfo)
+      if (mainfo(1) .lt. 0) then
+         write(*,*) 'MA57 factorization  failed, info = ',
+     $        mainfo(1)
          info = -3
          return
       endif
+      job = 0
+      CALL MA57CD (job, order, fact, lfact, ifact, lifact,
+     $     1, y1, mmax+nmax, work, lwork, iwork, icntl, mainfo)
+      if (mainfo(1) .lt. 0) then
+         write(*,*) 'MA57 solve failed, info = ', mainfo(1)
+         info = -3
+         return
+      endif
+      call dcopy(order, y1, incr, comp, incr)
 
 *     nora = min(comp./x)
 *     solution is in comp and using y2 as temp storage
@@ -446,13 +424,6 @@ C     $          ddot(n, c, incr, x, incr)
       obvalue = xdotv / 2.0d0 + cdotx
 
 
-*     release internal memory from phase1 and our own PARDISO calls here
-      phase = -1
-      CALL pardiso (pt, maxfct, mnum, mtype, phase, order, Ex, Ep, Ei,
-     1 idum, nrhs, iparm, msglvl, ddum, ddum, error)
-      lsyfac1 = .false.
-
-
       lower = neginf
       zhis(1) = lower
       gap = 1.0d0
@@ -467,9 +438,10 @@ C     $          ddot(n, c, incr, x, incr)
             return
          endif
          
-         call paphs2(Q, ldq, A, lda, m, n, c, 
+         call maphs2(Q, ldq, A, lda, m, n, c, 
      $        alpha, beta, lambda, toler,
-     $        obvalue, ob, x, y, Ep,Ei,Ex, nzmax,
+     $        obvalue, ob, x, y, Eirn, Ejcn, Ea, 
+     $        nzmax, lkeep, keep,
      $        y2, y1, dx, F,
      $        XX, ldxx, AA, ldaa,
      $        v, info)
@@ -519,17 +491,11 @@ C  910     format('iter = ',i5,' ob = ',f8.4)
 *     a (local) optimal solution has been found
       endif
 
-*     release internal memory
-      phase = -1
-      CALL pardiso (pt, maxfct, mnum, mtype, phase, order, Ex, Ep, Ei,
-     1 idum, nrhs, iparm, msglvl, ddum, ddum, error)
-      lsyfac2 = .false.
-      lsyfac1 = .false.
 
       x(n+1) = ob
       info = 0
 
-*     end of PASOQP
+*     end of MASOQP
       return
       end
 

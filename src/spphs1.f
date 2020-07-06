@@ -10,7 +10,7 @@
 * This uses sparse matrix routines in UMFPACK (v5.2.0)
 * http://www.cise.ufl.edu/research/sparse/umfpack/
 *
-* $Id: spphs1.f 2073 2009-02-27 00:03:39Z astivala $
+* $Id: spphs1.F 2969 2009-11-22 01:29:39Z astivala $
 *=======================================================================
 
       subroutine spphs1(A, lda, m, n, avec, b, x, y, z, ob, alpha,

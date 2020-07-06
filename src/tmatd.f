@@ -85,7 +85,7 @@
 * in object function (Q matrix values) instead.
 *
 *
-* $Id: tmatd.f 1843 2008-08-30 02:27:21Z astivala $
+* $Id: tmatd.F 2969 2009-11-22 01:29:39Z astivala $
 *=======================================================================
 
       subroutine tmatd(tab1,ldt1,n1,tab2,ldt2,n2,

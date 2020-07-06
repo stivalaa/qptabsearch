@@ -1,45 +1,46 @@
 *=======================================================================
-* File:    spphs2.f
+* File:    maphs2.f
 * Author:  Alex Stivala, based on spphase1.m by Prof. Yinyu Ye.
 * Created: July 2008
 *
-* This is a reimplementation using FORTRAN-77 and UMFPACK
+* This is a reimplementation using FORTRAN-77 and MA57
 * of spphase1.m from Prof. Yinyu Ye
 * http://www.stanford.edu/~yyye/matlab/spphase2.m
 *
-* This uses sparse matrix routines in UMFPACK (v5.2.0)
-* http://www.cise.ufl.edu/research/sparse/umfpack/
+* This uses sparse symmetric linear solver MA57 from HSL 2007
+* http://hsl.rl.ac.uk/hsl2007/distrib/hsl2007.html
+* needs registration as a registred researcher
 *
-* $Id: spphs2.F 2969 2009-11-22 01:29:39Z astivala $
+* $Id: maphs2.F 2969 2009-11-22 01:29:39Z astivala $
 *=======================================================================
 
-      subroutine spphs2(Q, ldq, A, lda, m, n, c, alpha, beta, lambda,
+      subroutine maphs2(Q, ldq, A, lda, m, n, c, alpha, beta, lambda,
      $     toler, obvalue, ob,
-     $     x, y, Ep, Ei, Ex, nzmax, u, h, xxvec, gg, XX, ldxx, 
-     $     AA, ldaa,  wvec, symbolic, info2)
+     $     x, y, Eirn, Ejcn, Ea, nzmax, lkeep, keep,
+     $     u, h, xxvec, gg, XX, ldxx, 
+     $     AA, ldaa,  wvec, info2)
 
       implicit none
 *
-* spphs2 - phase 2 of dsoqp:
+* maphs2 - phase 2 of dsoqp:
 *          Repeatedly solve an ellipsoid constrained QP problem
 *          by solving a linear system until a positive solution is
 *          found.
 *
 *     .. Scalar Arguments ..
-      integer            ldq,lda,m,n,nzmax,ldxx,ldaa,info2
+      integer            ldq,lda,m,n,nzmax,ldxx,ldaa,info2,lkeep
       double precision   alpha,beta,lambda,toler,obvalue,ob
-      integer*8          symbolic
 *     ..
 *     .. Array Arguments ..
-      integer            Ep(*),Ei(*)
+      integer            Eirn(*),Ejcn(*),keep(*)
       double precision   Q(ldq,*),A(lda,*),c(*),x(*),y(*),
-     $     Ex(*),u(*),h(*),xxvec(*),gg(*),XX(ldxx,*),
+     $     Ea(*),u(*),h(*),xxvec(*),gg(*),XX(ldxx,*),
      $     AA(ldaa, *), wvec(*)
 
 *     ..
 *
-* The phase 1 procedure called by spsoqp.
-* For more details see spsoqp.f.
+* The phase 1 procedure called by masoqp.
+* For more details see masoqp.f.
 *
 * Arguments
 * =========
@@ -90,17 +91,25 @@
 * y      (output) DOUBLE PRECISION vector, dimension (m)
 *        optimal dual solution (Lagrangian multiplier)
 *
-* Ep     (output) INTEGER vector, dimension >= m+n+1
+* Eirn   (output) INTEGER vector, dimension (nzmax)
 *        workspace
-*        sparse storage for matrix E for UMFPACK
+*        sparse storage for matrix E for MA47
 *
-* Ei     (output) INTEGER vector, dimensino (nzmax)
+* Ejcn  (output) INTEGER vector, dimension (nzmax)
 *        workspace
-*        sparse storage for matrix E for UMFPACK
+*        sparse storage for matrix E for MA57
 *
-* Ex     (output) DOUBLE PRECICISION vector, dimension (nzmax)
+* Ea     (output) DOUBLE PRECICISION vector, dimension (nzmax)
 *        workspace
-*        sparse storage for matrix E for UMFPACK
+*        sparse storage for matrix E for MA57
+*
+* lkeep  (input) INTEGER   
+*        length of keep array for MA57.
+*        must be >= 5*maxorder+nzmax+max(maxorder,nzmax)+42
+*         where maxorder = nmax*mmax
+*
+* keep   (output) INTEGER vector, dimension (lkeep)
+*        workspace for MA57
 *
 * nzmax  (input) INTEGER
 *        maximum allowed number of nonzero values in E. 
@@ -108,11 +117,11 @@
 *
 * u      (output) DOUBLE PRECISION vector, dimension (m+n)
 *        workspace
-*        solution from UMFPACK
+*        solution from MA57
 *
 * h      (output) DOUBLE PRECISION vector, dimension (m+n)
 *        workspace
-*        rhs vector UMFPACK
+*        rhs vector MA57
 *
 * xxvec  (output) DOUBLE PRECISION vector, dimension (n)
 *        workspace
@@ -135,9 +144,6 @@
 * wvec    (output) DOUBLE PRECISION, dimension (n)
 *        workspace     
 *
-* symbolic (input/output) INTEGER*8
-*        handle for UMFPACK symbolic pre-order and analsysis
-*
 * info2  (output) INTEGER
 *        = 0  : successful
 *        = 1  : too many nonzero values, increase nzmax
@@ -157,15 +163,36 @@
       parameter (infty=1.79769d+308)
       double precision neginf
       parameter (neginf=-1.79769d+308)
+      integer mmax,nmax,lwork,lfact,lifact
+      parameter(mmax = 220, nmax = 4000)
+      integer iworklen
+      parameter(iworklen = 5*mmax*nmax)
+      parameter(lwork = mmax*nmax)
+      parameter(lfact = 5*mmax*nmax)
+      parameter(lifact = 5*mmax*nmax)
+*     ..
+*     .. Common block Arrays ..
+*     lsyfac2 is true after maphs2 symbolic factorization done
+*     lsyfac1 is true after maphs1 symbolic factorization done
+      logical lsyfac2,lsyfac1
+      common /macommon/ lsyfac2,lsyfac1
 *     ..
 *     .. Local Scalars ..
+*     MA57 variables
+      integer ne,nrhs,job
+*     other local scalars
       integer i,j,incr,order,ixE
       double precision w1,w2,blasa,blasb,nora,valgo
       character uplo
-      integer*8 numeric,sys
 *     ..
 *     .. Local Arrays ..
-      double precision control(20),infou(90)
+*     MA57 workspace
+      integer iwork(iworklen)
+      integer icntl(20),mainfo(40)
+      double precision cntl(5),rinfo(20)
+      double precision work(lwork)
+      integer ifact(lifact)
+      double precision fact(lfact)
 *     ..
 *     .. Intrinsic Functions ..
       intrinsic min,abs,int
@@ -174,8 +201,8 @@
       external demvv
       double precision dvmin
       external dvmin
-*     UMFPACK subroutines
-      external umf4def,umf4sym,umf4num,umf4solr,umf4fsym,umf4fnum
+*     MA57 subroutines
+      external MA57ID,MA57AD,MA57BD,MA57CD
 *     BLAS level 1 subroutines/functions
       external daxpy,dscal,dcopy
       double precision ddot
@@ -212,25 +239,20 @@
 *     nonzero.  
 *
 *     E is square, symmetric, and sparse (but not very sparse
-*     as in the other cases in DPSOQP,SPPHS1, since the top left
+*     as in the other cases in DPSOQP,MAPHS1, since the top left
 *     submatrix is XX which is not sparse). E.g. may be 43% nonzero.
 *
-*     But it is not necessarily
-*     positive definite so we cannot always use CHOLMOD to efficiently
-*     solve the system. We therefore use UMFPACK with sparse matrix
-*     E stored in packed column (Harwell-Boeing) format.
-*     In this format, the nonzero entries are stored (column major)
-*     in Ex. For each column the row indices of the nonzero entries
-*     are stored in Ei. For each column k, Ep(k) and Ep(k+1)-1 are
-*     respecitively the first and last indices of row numbers in Ei
-*     and values in Ex for that column.
-*     NB UMFPACK uses 0-based indexing in Ep and Ei.
-*     No duplicate row indices are allowed, and row indicies for each
-*     column must be in ascending order.
+*     But it is not necessarily positive definite so we cannot always
+*     use CHOLMOD to efficiently solve the system.  We therefore use
+*     MA57 with sparse matrix E stored in the HSL2007 MA57 format.  In
+*     this format, the i and j indices of the nonzero entries of E are
+*     stored in Eirn and Ejcn respectively. (Only one triangle is
+*     stored). The nonzero values are stored in Ea, corresponding to the
+*     i,j indices in Eirn and Ejcn.
 *
 *     Inside the loop, only the top left submatrix of E is updated
 *     (lambda is modified), other 3 submatrices are constant.
-*     So we can build the matrix in sparse (Harwell-Boeing) format
+*     So we can build the matrix in sparse format
 *     outside the loop, and inside the loop need only update
 *     the n diagonal elements in top left n by n submatrix by
 *     adding new value of lambda to diagonal elements of XX.
@@ -245,8 +267,10 @@
 *     ==================================================================
 
 
-*     set default parameters for UMFPACK
-      call umf4def(control)
+*     set parameters for MA57
+      call MA57ID(cntl, icntl)
+*      icntl(5) = 4  ! debug messages enabled
+      nrhs = 1
 
       lambda = (1.0d0 - beta) * lambda
 
@@ -306,21 +330,21 @@
 *        to diagonal of XX + lambda. (We previously made sure these
 *        elements are present in the sparse storage format, even if zero).
 *     This doesn't matter much as this loop typically only has one
-*     iteration anyway - the expense is multiple calls of SPPHS2
-*     from SPSOQP.
+*     iteration anyway - the expense is multiple calls of MAPHS2
+*     from MASOQP.
 
-*     ixE is the current index (FORTRAN 1-based) in Ei and Ex.
-*     We will subtract one from the values stored in the arrays
-*     for UMFAPCK zero-based convention.
+*     ixE is the current index in Eirn and Ejcn and Ea.
 *     We make sure we always store the diagonal elements of XX in 
 *     top left submatrix of E, even if zero, since we update them in loop.
+*     And all diagonal elements must be explicitly stored in HSL MA57
+*     sparse matrix format anyway.
          ixE = 1
-         Ep(1) = 0
-         do 250 j = 1, n
-            do 240 i = 1, n
+         do 250 i = 1, n
+            do 240 j = i, n
                if (i .eq. j) then 
-                  Ei(ixE) = i - 1
-                  Ex(ixE) = XX(i, j) + lambda
+                  Eirn(ixE) = i
+                  Ejcn(ixE) = j
+                  Ea(ixE) = XX(i, j) + lambda
                   ixE = ixE + 1
                   if (ixE .gt. nzmax) then
                      write(*,*) 
@@ -329,8 +353,9 @@
                      return
                   endif
                elseif  (XX(i, j) .ne. 0.0d0) then
-                  Ei(ixE) = i - 1
-                  Ex(ixE) = XX(i, j)
+                  Eirn(ixE) = i
+                  Ejcn(ixE) = j
+                  Ea(ixE) = XX(i, j)
                   ixE = ixE + 1
                   if (ixE .gt. nzmax) then
                      write(*,*) 
@@ -340,10 +365,11 @@
                   endif
                endif
  240        continue
-            do 245, i = 1, m
-               if (AA(i,j) .ne. 0.0d0) then
-                  Ei(ixE) = n+i - 1
-                  Ex(ixE) = AA(i,j)
+            do 245, j = 1, m
+               if (AA(j,i) .ne. 0.0d0) then
+                  Eirn(ixE) = i
+                  Ejcn(ixE) = n + j
+                  Ea(ixE) = AA(j,i)
                   ixE = ixE + 1
                   if (ixE .gt. nzmax) then
                      write(*,*) 
@@ -353,24 +379,8 @@
                   endif
                endif
  245        continue
-            Ep(j+1) = ixE - 1
  250     continue
-         do 270 j = 1, m
-            do 260 i = 1, n
-               if (AA(j,i) .ne. 0.0d0) then
-                  Ei(ixE) = i - 1
-                  Ex(ixE) = AA(j,i)
-                  ixE = ixE + 1
-                  if (ixE .gt. nzmax) then
-                     write(*,*)'Max number of nonzero values exceeded.'
-                     info2 = 1
-                     return
-                  endif
-               endif
- 260        continue
-            Ep(n+j+1) = ixE - 1
- 270     continue
-         
+         ne = ixE - 1
          
 *        update nonconstant part of rhs vector h
 *        h(1:n) = -x .* gg
@@ -381,36 +391,44 @@
 
          order = m + n
 
-*        pre-order and symbolic analysis
+*        reordering and symbolic factorization
 *        We do this once on the first iteration of loop in first call
 *        of this function, it is then reused on subsequent 
 *        iterations + calls as the structure of the matrix does not change
 *        and analysis is an expensive operation
-         if (symbolic .eq. 0) then
-            call umf4sym(order,order,Ep,Ei,Ex,symbolic,control,infou)
-            if (infou(1) .lt. 0) then
-               write(*,*) 'SPPHS2 UMF4SYM failed, info = ',infou(1)
-               info2 = int(infou(1))
+         if (.not. lsyfac2) then
+            CALL MA57AD (order, ne, Eirn, Ejcn, lkeep, keep, iwork,
+     $           icntl, mainfo, rinfo)
+            if (mainfo(1) .lt. 0) then
+               write(*,*) 'MA57 symbolic analysis failed, info = ',
+     $              mainfo(1)
+               info2 = -3
                return
             endif
-         endif
-*        numeric factorization
-         call umf4num(Ep, Ei, Ex, symbolic, numeric, control, infou)
-         if (infou(1) .lt. 0) then
-            write(*,*) 'SPPHS2 UMF4NUM failed, info = ', infou(1)
-            info2 = int(infou(1))
-            return
-         endif
-*        solve E*u=h with iterative refinement
-         sys = 0
-         call umf4solr(sys, Ep, Ei, Ex, u, h, numeric, control, infou)
-         call umf4fnum(numeric)
-         if (infou(1) .lt. 0) then
-            write(*,*) 'SPPHS2 UMF4SOLR failed, info = ', infou(1)
-            info2  = int(infou(1))
-            return
+            lsyfac2 = .true.
          endif
 
+*        numeric factorization and
+*        solve E*u=h without iterative refinement
+         CALL MA57BD (order, ne, Ea, fact, lfact, ifact, lifact,
+     $        lkeep, keep, iwork,
+     $        icntl, cntl, mainfo, rinfo)
+         if (mainfo(1) .lt. 0) then
+            write(*,*) 'MA57 factorization failed, info = ',
+     $           mainfo(1)
+            info2 = -3
+            return
+         endif
+*        MA57CD puts solution in rhs vector so copy h into u for this
+         call dcopy(order, h, incr, u, incr)
+         job = 0
+         CALL MA57CD (job, order, fact, lfact, ifact, lifact,
+     $        1, u, mmax+nmax, work, lwork, iwork, icntl, mainfo)
+         if (mainfo(1) .lt. 0) then
+            write(*,*) 'MA57 solve failed, info = ',mainfo(1)
+            info2 = -3
+            return
+         endif
 *        The solution is in u
          
 *        xxvec = x + x .* u(1:n)
@@ -496,7 +514,7 @@ C         call dsymv(uplo, n, blasa, Q, ldq, x, incr, blasb, wvec, incr)
      $        ddot(n, c, incr, x, incr)
       endif
 
-*     end of SPPHS2 , phase 2 subroutine of SPSOQP.
+*     end of MAPHS2 , phase 2 subroutine of MASOQP.
 
       info2 = 0
       return

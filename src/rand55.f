@@ -1,7 +1,7 @@
       subroutine rand55(n,x)
       double precision x(*)
 *     fill vector with up to 55 'random' values
-*     $Id: rand55.f 1619 2008-07-09 05:40:30Z astivala $
+*     $Id: rand55.F 2969 2009-11-22 01:29:39Z astivala $
       external dcopy
       double precision comp(55)
       data comp/ 0.656476299029758458836d0,

@@ -16,7 +16,7 @@
 *     no increment, etc.)
 *     just to keep things simple.
 *     Alex Stivala 04July2008.
-*     $Id: drecip.f 1565 2008-07-05 03:32:54Z astivala $
+*     $Id: drecip.F 2969 2009-11-22 01:29:39Z astivala $
 *
 *
 *     .. Local Scalars ..

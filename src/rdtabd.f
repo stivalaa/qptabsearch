@@ -43,7 +43,7 @@
 * by this subroutine, rather handled by a call to subroutine RDISTM.
 *
 * 
-* $Id: rdtabd.f 1879 2008-09-09 06:11:24Z astivala $
+* $Id: rdtabd.F 2969 2009-11-22 01:29:39Z astivala $
 *=======================================================================
 
       subroutine rdtabd(nunit, tab, ldo, n, name)

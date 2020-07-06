@@ -5,7 +5,7 @@
 *
 * Numeric tableau (Omega matrix) element matching score function
 * 
-* $Id: tscorn.f 1700 2008-07-17 09:05:38Z astivala $
+* $Id: tscorn.F 2969 2009-11-22 01:29:39Z astivala $
 *=======================================================================
 
       double precision function tscorn(x, y)
@@ -15,7 +15,7 @@
 * tscorn - Numeric tableau (Omega matrix) matching score function
 *
 *    Return the tableau matching score between two Omega matrix entries
-*    x and y as per Kamat et al (2008)
+*    x and y as per Konagurthu et al (2008)
 *
 *     .. Scalar Arguments ..
       double precision x, y

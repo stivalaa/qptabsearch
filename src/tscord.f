@@ -5,7 +5,7 @@
 *
 * Tableau (discrete) element matching score function
 * 
-* $Id: tscord.f 1824 2008-08-22 04:32:41Z astivala $
+* $Id: tscord.F 2969 2009-11-22 01:29:39Z astivala $
 *=======================================================================
 
       integer function tscord(x, y)

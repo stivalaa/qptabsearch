@@ -1,30 +1,27 @@
 *=======================================================================
-* File:    tsrchd.f
+* File:    tlocsd.f
 * Author:  Alex Stivala
 * Created: July 2008
 *
 * FORTRAN-77 implementation of tableau searching discrete (tableau)
-* the SOLVQP implementation of Prof. Yinyu Ye's interior point QP
-* solver.
+* heuristic using local search technique
 *
-*
-* Usage: tsrchd [-t] < inputfile
+* Usage: tlocsd [-t] [-s] < inputfile
 *
 *        -t : output cpu time in 3rd column of output
+*        -s : use simulated annealing, otherwise use faster heuristic
+*             local search
 *
 * The 'database' to search is an ASCII file of  tableaux
 * (Omega matrices) in format described in rdtabd.f.
 *
 * The results are printed to stdout as 
 *
-* name -rawscore norm2score zscore pvalue
-*
-* NB in this format we negate the rawscore so it is POSITIVE (it is
-* actually negative since we minimize).
+* name score
 *
 * If the "-t" (times) command line option is given, the format is
 *
-* name rawscore cputime
+* name score cputime
 *
 * cputime is the CPU time in seconds for solving that tableau matching probelm.
 *
@@ -105,17 +102,17 @@
 *  7.549 11.072 12.248 12.446  4.583  9.903 15.689  0.000 
 *
 * 
-* $Id: tsrchd.F 3957 2010-07-21 05:55:21Z alexs $
+* $Id: tlocsd.F 3240 2010-01-18 03:28:54Z alexs $
 *=======================================================================
 
-      program tsrchd
+      program tlocsd
 
       implicit none
 
 *     .. Parameters ..
 *     largest tableau (omega matrix) dimension allowed
       integer maxdim
-      parameter(maxdim = 123)
+      parameter(maxdim = 110)
 *     unit number of standard input
       integer inunit
       parameter(inunit = 5)
@@ -129,18 +126,16 @@
       character dbfile*1024,qid*8,dbid*8
       logical ltype,lorder,lsoln
       logical lvbose
-      double precision score
-      integer j
+      integer score
+      integer i
       real start,finish
       character*32 arg
-      double precision n2score
-      double precision zscore
-      double precision pvalue
+      logical lsiman
 *     ..
 *     .. Local Arrays ..
       character*2 qtab(maxdim,maxdim),dbtab(maxdim,maxdim)
       double precision qdmat(maxdim,maxdim),dbdmat(maxdim,maxdim)
-      double precision soln(maxdim*maxdim+maxdim+maxdim)
+      integer ssemap(maxdim)
 *     ..
 *     .. Intrinsic Functions ..
 !      intrinsic Time,CTime
@@ -149,11 +144,7 @@
 #endif
 *     ..
 *     .. External Subroutines and Functions ..
-      external tmatd,rdtabd,rdistm
-      external norm2,zgumbel,pvgumbel
-      double precision norm2
-      double precision zgumbel
-      double precision pvgumbel
+      external thmatd,rdtabd,rdistm
 #if defined(__PORTLAND_COMPILER)
       external iargc
       integer iargc
@@ -163,11 +154,17 @@
 *     .. Executable Statements ..
 *
       lvbose = .false.
-      if (iargc() .ge. 1) then
-         call getarg(1, arg)
+      lsiman = .false.
+      i = iargc()
+ 1    if (i .ge. 1) then
+         call getarg(i, arg)
          if (arg .eq. '-t') then
             lvbose = .true.
+         elseif (arg .eq. '-s') then
+            lsiman = .true.
          endif
+         i = i - 1
+         goto 1
       endif
 
       read (*,'(a1024)') dbfile
@@ -175,24 +172,30 @@
       call rdtabd(inunit, qtab, maxdim, qn, qid)
       call rdistm(inunit, qdmat, maxdim, qn)
       
-      write(*, 5) ltype,lorder,lsoln,lvbose
- 5    format('# TSRCHD LTYPE = ',l1,' LORDER = ',l1, ' LSOLN = ',l1,
-     $     ' LVBOSE = ',l1)
-      write(*, 6) qid
- 6    format('# QUERY ID = ',a8)
-      write(*, 7) dbfile
- 7    format('# DBFILE = ',a80)
-!      write(*,8) CTime(Time())
-! 8    format('# ',a24)
+      write(*, 5) ltype,lorder,lsoln,lsiman,lvbose
+ 5    format('# TLOCSD LTYPE = ',l1,' LORDER = ',l1, ' LSOLN = ',l1,
+     $     ' LSIMAN = ',l1, ' LVBOSE = ',l1)
+      write(*, 7) qid
+ 7    format('# QUERY ID = ',a8)
+      write(*, 8) dbfile
+ 8    format('# DBFILE = ',a80)
+!      write(*,9) CTime(Time())
+! 9    format('# ',a24)
 
       open(dbunit, file=dbfile, status='OLD')
  10   if (.true.) then
          call rdtabd(dbunit, dbtab, maxdim, dbn, dbid)
          call rdistm(dbunit, dbdmat, maxdim, dbn)
          call CPU_TIME(start)
-         call tmatd(qtab, maxdim, qn, dbtab, maxdim, dbn, 
-     $        ltype, lorder, qdmat, dbdmat,
-     $        score, soln, info)
+         if (lsiman) then
+*          use simulated annealing
+            call tsamtd(qtab, maxdim, qn, dbtab, maxdim, dbn, 
+     $           ltype, lorder, qdmat, dbdmat, score, ssemap, info)
+         else
+*          use faster local search heuristic
+            call thmatd(qtab, maxdim, qn, dbtab, maxdim, dbn, 
+     $           ltype, lorder, qdmat, dbdmat, score, ssemap, info)
+         endif
          call CPU_TIME(finish)
          if (info .ne. 0) then
             write(*,20) dbid,info
@@ -200,18 +203,18 @@
          else
             if (lvbose) then
               write(*,25) dbid,score,finish-start
- 25           format(a8,f12.4,f12.3)
+ 25           format(a8,i6,f12.3)
             else
-              score = -1.0d0*score
-              n2score = norm2(score, qn, dbn)
-              zscore = zgumbel(n2score)
-              pvalue = pvgumbel(zscore)
-              write(*,30) dbid,score,n2score,zscore,pvalue
- 30           format(a8,f12.4,g16.8,g16.8,g16.8)
-           endif
+              write(*,30) dbid,score
+ 30           format(a8,i6)
+            endif
             if (lsoln) then
-               write(*,40) (soln(j), j = 1, qn*dbn+qn+dbn)
- 40            format (f8.4)
+               do 50 i = 1, qn
+                  if (ssemap(i) .ne. 0) then
+                     write(*,40) i, ssemap(i)
+ 40                  format (i3,' ',i3)
+                  endif
+ 50            continue
             endif
          endif
          read(dbunit, '(a80)', err=999, end=999)

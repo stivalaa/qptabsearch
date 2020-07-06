@@ -1,41 +1,43 @@
 *=======================================================================
-* File:    paphs1.f
+* File:    maphs1.f
 * Author:  Alex Stivala, based on spphase1.m by Prof. Yinyu Ye.
 * Created: July 2008
 *
-* This is a reimplementation using FORTRAN-77 and PARDISO
+* This is a reimplementation using FORTRAN-77 and MA57
 * of spphase1.m from Prof. Yinyu Ye
 * http://www.stanford.edu/~yyye/matlab/spphase1.m
 *
-* This uses sparse symmetric linear solver PARDISO
-* in the Intel Math Kernel Library (MKL) (10.1.0).
+* This uses sparse symmetric linear solver MA57 from HSL 2007
+* http://hsl.rl.ac.uk/hsl2007/distrib/hsl2007.html
+* needs registration as a registred researcher
 *
-* $Id: paphs1.F 2969 2009-11-22 01:29:39Z astivala $
+* $Id: maphs1.F 3032 2009-12-10 05:22:56Z alexs $
 *=======================================================================
 
-      subroutine paphs1(A, lda, m, n, avec, b, x, y, z, ob, alpha,
-     $     dx, Ep, Ei, Ex, nzmax, F, ldf, u, v, umzv, obz,
+      subroutine maphs1(A, lda, m, n, avec, b, x, y, z, ob, alpha,
+     $     dx, Eirn, Ejcn, Ea, lkeep, keep, 
+     $     nzmax, F, ldf, u, v, umzv, obz,
      $     y1, y2,
      $     info)
 
       implicit none
 *
-* paphs1 - phase 1 of pasoqp: find a feasible point
+* maphs1 - phase 1 of masoqp: find a feasible point
 *
 *     .. Scalar Arguments ..
-      integer            lda,m,n,nzmax,ldf
+      integer            lda,m,n,nzmax,ldf,lkeep
       double precision   z,ob,alpha
 *     ..
 *     .. Array Arguments ..
       double precision   A(lda,*), x(*), y(*), avec(*), b(*)
-      double precision   dx(*),Ex(*),F(ldf, *),
+      double precision   dx(*),Ea(*),F(ldf, *),
      $     u(*), v(*), umzv(*), obz(*), y1(*), y2(*)
-      integer            Ep(*),Ei(*)
+      integer            Eirn(*),Ejcn(*),keep(*)
 
 *     ..
 *
-* The phase 1 procedure called by pasoqp.
-* For more details see pasoqp.f.
+* The phase 1 procedure called by masoqp.
+* For more details see masoqp.f.
 *
 * Arguments
 * =========
@@ -76,21 +78,29 @@
 * dx     (output) DOUBLE PRECISION, dimension (n)
 *        workspace
 *
-* Ep     (output) INTEGER vector, dimension >= m+n+1
+* Eirn   (output) INTEGER vector, dimension (nzmax)
 *        workspace
-*        sparse storage for matrix E for PARDISO
+*        sparse storage for matrix E for MA47
 *
-* Ei     (output) INTEGER vector, dimensino (nzmax)
+* Ejcn  (output) INTEGER vector, dimension (nzmax)
 *        workspace
-*        sparse storage for matrix E for PARDISO
+*        sparse storage for matrix E for MA57
 *
-* Ex     (output) DOUBLE PRECICISION vector, dimension (nzmax)
+* Ea     (output) DOUBLE PRECICISION vector, dimension (nzmax)
 *        workspace
-*        sparse storage for matrix E for PARDISO
+*        sparse storage for matrix E for MA57
+*
+* lkeep  (input) INTEGER   
+*        length of keep array for MA57.
+*        must be >= 5*maxorder+nzmax+max(maxorder,nzmax)+42
+*         where maxorder = nmax*mmax
+*
+* keep   (output) INTEGER vector, dimension (lkeep)
+*        workspace for MA57
 *
 * nzmax  (input) INTEGER
 *        maximum allowed number of nonzero values in E. 
-*        Dimensions Ei and Ex.
+*        Dimensions Eirn and Ejcn and Ea.
 *
 * F      (output) DOUBLE PRECISION, dimension (m+n, 2)
 *        workspace
@@ -100,11 +110,11 @@
 *
 * y1     (output) DOUBLE PRECISION vector, dimension(m+n)
 *        workspace
-*        solution from PARDISO with rhs column 1 of F
+*        solution from MA57 with rhs column 1 of F
 *
 * y2     (output) DOUBLE PRECISION vector, dimension(m+n)
 *        workspace
-*        solution from PARDISO with rhs column 2 of F
+*        solution from MA57 with rhs column 2 of F
 *
 * u      (output) DOUBLE PRECISION vector, dimension (n+2)
 *        workspace
@@ -121,35 +131,43 @@
 * info   (output) INTEGER
 *        = 0  : successful
 *        = 1  : max number of nonzero values exceeded, increase nzmax
-*       other  : info code from PARDISO
+*       other  : info code from MA57
 *
 *=======================================================================
 *
 
 *     .. Parameters ..
-
+      integer mmax,nmax,lwork,lfact,lifact
+      parameter(mmax = 220, nmax = 4000)
+      integer iworklen
+      parameter(iworklen = 5*mmax*nmax)
+      parameter(lwork = mmax*nmax)
+      parameter(lfact = 5*mmax*nmax)
+      parameter(lifact = 5*mmax*nmax)
 *     ..
 *     .. Common block Arrays ..
-*     PARDISO internal solver memory pointer
-      integer*8 pt(64)
-*     lsyfac2 is true after paphs2 symbolic factorization done
-*     lsyfac1 is true after paphs1 symbolic factorization done
+*     lsyfac2 is true after maphs2 symbolic factorization done
+*     lsyfac1 is true after maphs1 symbolic factorization done
       logical lsyfac2,lsyfac1
-      common /pacommon/ pt,lsyfac2,lsyfac1
+      common /macommon/ lsyfac2,lsyfac1
 *     ..
 *     .. Local Scalars ..
       integer i,j,order,info,incr,uvlen,xlen,ixE
-*     PARDISO variables
-      integer maxfct,mnum,mtype,phase,nrhs,error,msglvl,idum
-      double precision ddum
+*     MA57 variables
+      integer ne,job
 *     other local scalars
       double precision w1,w2,obrec,obrec2,adoty2,blasa,blasb,nora,vn2rec
       character trans
 C      character uplo
 *     ..
 *     .. Local Arrays ..
-*     PARDISO parameter block
-      integer iparm(64)
+*     MA57 workspace
+      integer iwork(iworklen)
+      integer icntl(20),mainfo(40)
+      double precision cntl(5),rinfo(20)
+      double precision work(lwork)
+      integer ifact(lifact)
+      double precision fact(lfact)
 *     ..
 *     .. Intrinsic Functions ..
       intrinsic min,int
@@ -158,8 +176,8 @@ C      character uplo
       external drecip,demvv
       double precision dvmin,dvmax
       external dvmin,dvmax
-*     PARDISO subroutines
-      external pardiso
+*     MA57 subroutines
+      external MA57ID,MA57AD,MA57BD,MA57CD
 *     BLAS level 1 subroutines/functions
       external daxpy,dscal,dcopy
       double precision ddot
@@ -187,18 +205,12 @@ C      character uplo
 *     E is square, symmetric, and sparse. 
 *     But it is not necessarily
 *     positive definite so we cannot always use CHOLMOD to efficiently
-*     solve the system. We therefore use PARDISO with sparse matrix
-*     E stored in compressed row format.
-*     In this format, the nonzero entries are stored (row major)
-*     in Ex. For each row the column indices of the nonzero entries
-*     are stored in Ei. For each row k, Ep(k) and Ep(k+1)-1 are
-*     respecitively the first and last indices of column numbers in Ei
-*     and values in Ex for that row.
-*     NB PARDISO uses 1-based indexing in Ep and Ei.
-*     No duplicate row indices are allowed, and row indicies for each
-*     column must be in ascending order.
-*     Only the upper triangle is stored. Zeros on the diagonal must
-*     be explicitly stored.
+*     solve the system. We therefore use MA57 with sparse matrix
+*     E stored in the HSL2007 MA57 format.
+*     In this format, the i and j indices of the nonzero entries of E
+*     are stored in Eirn and Ejcn respectively. (Only one triangle
+*     is stored). The nonzero values are stored in Ea, corresponding
+*     to the i,j indices in Eirn and Ejcn.
 *
 *     If E were positive definite, which can efficiently be tested
 *     for with Cholesky factorization, it could be solved by that means
@@ -209,54 +221,27 @@ C      character uplo
 *
 *     ==================================================================
 
-*     set parameters for PARDISO
-      do 1,i = 1, 64
-         iparm(i) = 0
- 1    continue
-      iparm(1) = 1 ! no solver default
-      iparm(2) = 2 ! fill-in reordering from METIS
-      iparm(3) = 1 ! numbers of processors
-      iparm(4) = 0 ! no iterative-direct algorithm
-      iparm(5) = 0 ! no user fill-in reducing permutation
-      iparm(6) = 0 ! =0 solution on the first n compoments of x
-      iparm(7) = 0 ! not in use
-      iparm(8) = 2 ! numbers of iterative refinement steps
-      iparm(9) = 0 ! not in use
-      iparm(10) = 13 ! perturbe the pivot elements with 1E-13
-      iparm(11) = 1 ! use nonsymmetric permutation and scaling MPS
-      iparm(12) = 0 ! not in use
-      iparm(13) = 0 ! maximum weighted matching algorithm is switched-off
-      iparm(14) = 0 ! Output: number of perturbed pivots
-      iparm(15) = 0 ! not in use
-      iparm(16) = 0 ! not in use
-      iparm(17) = 0 ! not in use
-      iparm(18) = 0 ! Output: number of nonzeros in the factor LU
-      iparm(19) = 0 ! Output: Mflops for LU factorization
-      iparm(20) = 0 ! Output: Numbers of CG Iterations
-      iparm(27 ) = 0   ! check parameters if 1
-      error = 0 ! initialize error flag
-      msglvl = 0 ! print statistical information
-      mtype = -2 ! symmetric, indefinite
-      maxfct = 1
-      mnum = 1
-      nrhs = 1
+*     set parameters for MA57
+      call MA57ID(cntl, icntl)
+*      icntl(5) = 4  ! debug messages enabled
 
       incr = 1
       call dcopy(n, x, incr, dx, incr)
 *     seems to be no BLAS subroutine for elementwise reciprocal, use own
       call drecip(n, dx)
 
-*     ixE is the current index (FORTRAN 1-based) in Ei and Ex.
+*     ixE is the current index in Eirn and Ejcn and Ea
       ixE = 1
-      Ep(1) = ixE
       do 30 i = 1, n
-         Ei(ixE) = i
-         Ex(ixE) = dx(i)**2
+         Eirn(ixE) = i
+         Ejcn(ixE) = i
+         Ea(ixE) = dx(i)**2
          ixE = ixE + 1
          do 20 j = 1, m
             if (A(j,i) .ne. 0.0d0) then
-               Ei(ixE) = n + j
-               Ex(ixE) = A(j,i)
+               Eirn(ixE) = i
+               Ejcn(ixE) = n + j
+               Ea(ixE) = A(j,i)
                ixE = ixE +1
                if (ixE .gt. nzmax) then
                   write(*,*) 'Max number of nonzero values exceeded.'
@@ -265,16 +250,8 @@ C      character uplo
                endif
             endif
  20      continue
-         Ep(i+1) = ixE
  30   continue
-*     need to expclitly store the remaining zeros on the diagonal
-      do 40 i = n+1,n+m
-         Ei(ixE) = i
-         Ex(ixE) = 0.0d0
-         ixE = ixE + 1
-         Ep(i+1) = ixE
- 40   continue
-
+      ne = ixE - 1
 
       do 100 i = 1, n
          F(i, 1) = dx(i)
@@ -299,38 +276,35 @@ C      character uplo
 *     iterations + calls as the structure of the matrix does not change
 *     and analysis is an expensive operation
       if (.not. lsyfac1) then
-         phase = 11
-         CALL pardiso (pt, maxfct, mnum, mtype, phase, order,Ex,Ep,Ei,
-     1    idum, nrhs, iparm, msglvl, ddum, ddum, error)
-         if (error .ne. 0) then
-            write(*,*) 'PARDISO reordering+symfac failed, info = ',error
-            info = error
+         CALL MA57AD (order, ne, Eirn, Ejcn, lkeep, keep, iwork, 
+     $        icntl, mainfo, rinfo)
+         if (mainfo(1) .lt. 0) then
+            write(*,*) 'MA57 symbolic analysis failed, info=',mainfo(1)
+            info = mainfo(1)
             return
          endif
          lsyfac1 = .true.
       endif
 *     numeric factorizatino and
-*     solve E*y1=F(:,1) with iterative refinement
-      phase = 23
-      CALL pardiso (pt, maxfct, mnum, mtype, phase, order, Ex, Ep, Ei,
-     1 idum, nrhs, iparm, msglvl, F, y1, error)
-      if (error .ne. 0) then
-         write(*,*) 'PARDISO back subst [1] failed, info = ', error
-         info = error
+*     solve E*y1=F  without iterative refinement
+      CALL MA57BD (order, ne, Ea, fact, lfact, ifact, lifact,
+     $     lkeep, keep, iwork,
+     $     icntl, cntl, mainfo, rinfo)
+      if (mainfo(1) .lt. 0) then
+         write(*,*) 'MA57 factorization failed, info = ', mainfo(1)
+         info = mainfo(1)
          return
       endif
-*     solve E*y2=F(:,2) with iterative refinement
-      phase = 33
-      CALL pardiso (pt, maxfct, mnum, mtype, phase, order, Ex, Ep, Ei,
-     1 idum, nrhs, iparm, msglvl, F(1,2), y2, error)
-      if (error .ne. 0) then
-         write(*,*) 'PARDISO back subst [2] failed, info = ', error
-         info = error
+      job = 0
+      CALL MA57CD (job, order, fact, lfact, ifact, lifact,
+     $     2, F, ldf, work, lwork, iwork, icntl, mainfo)
+      if (mainfo(1) .lt. 0) then
+         write(*,*) 'MA57 solve [1] failed, info = ', mainfo(1)
+         info = mainfo(1)
          return
       endif
-*     NB we do not free PARDISO memory as we reuse the symbolic
-*     factorization done here back in the caller pasoqp, where
-*     the matrix has the same structure.
+      call dcopy(order, F, incr, y1, incr)
+      call dcopy(order, F(1,2) ,incr, y2, incr)
 
 *     We will use the solution vectors y1, y2 in place,
 *     using just the m-vectors starting at row n+1 (i.e. the vectors

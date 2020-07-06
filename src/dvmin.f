@@ -13,7 +13,7 @@
 *     FORTRAN-90 has an intrinsic for this,
 *     but not FORTRAN-77 (and not in BLAS).
 *     Alex Stivala 05July2008.
-*     $Id: dvmin.f 2056 2009-01-21 23:54:02Z astivala $
+*     $Id: dvmin.F 2969 2009-11-22 01:29:39Z astivala $
 *
 *     .. Parameters ..
       DOUBLE PRECISION INFTY

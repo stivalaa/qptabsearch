@@ -9,11 +9,11 @@
 *
 * See detailed documentation in tmatd.f header comments.
 *
-* $Id: tmatn.f 1834 2008-08-27 04:16:50Z astivala $
+* $Id: tmatn.F 2969 2009-11-22 01:29:39Z astivala $
 *=======================================================================
 
       subroutine tmatn(omega1,ldo1,n1,omega2,ldo2,n2,
-     $     ltype,lorder,score,soln,info)
+     $     ltype,lorder,dmat1,dmat2,score,soln,info)
 
       implicit none
 *
@@ -30,6 +30,7 @@
 *     ..
 *     .. Array Arguments ..
       double precision   omega1(ldo1,*),omega2(ldo2,*)
+      double precision   dmat1(ldo1,*),dmat2(ldo2,*)
       double precision   soln(*)
 *     ..
 *
@@ -67,6 +68,12 @@
 *        order between the tableaux i.e. if i < k and j >= l for i,k
 *        indices in omega1 and j,l indices in omega2.
 *
+* dmat1  (input) DOUBLE PRECISION array, dimension (n1,n1)
+*        SSE distance matrix for one structure. symmetric
+*
+* dmat2  (input) DOUBLE PRECISION array, dimension (n2,n2)
+*        SSE distance matrix for second structure. symmetric
+*
 * score  (output) DOUBLE PRECISION
 *        score of matching omega1 with omega2 using relaxed QP.
 *
@@ -91,6 +98,11 @@
       integer maxbdim, maxcdim
       parameter (maxcdim = maxdim1*maxdim2+maxdim1+maxdim2)
       parameter (maxbdim = maxdim1+maxdim2)
+*     Threshold for penalizing difference in distances between SSEs
+*     (Angstroms) - if difference in distances between SSEs in the two
+*     structures exceeds this then penalize that match
+      double precision mxssed
+      parameter (mxssed = 4.0d0)
 *     ..
 *     .. Local Scalars ..
       integer i,j,k,l,qdim,arows
@@ -182,12 +194,17 @@ C  99   format (111(f8.4))
      $                    omega1(k,k) .ne. omega2(l,l))) then
 *                       penalize matches between SSEs of different type
                         Q((i-1)*n2 + j, (k-1)*n2 + l) = 0.0d0
+                     elseif (abs(dmat1(i,k) - dmat2(j,l)) .gt. mxssed)
+*                       penalize matches where difference between SSE 
+*                       distances exceeds the threshold
+     $               then
+                        Q((i-1)*n2 + j, (k-1)*n2 + l) = 0.0d0
                      else
                         if (lorder .and.
      $                       ( (i .lt. k .and. j .gt. l) .or.
      $                         (i .gt. k .and. j .lt. l) )) then
 *                       penalize SSEs that are out of order
-                           Q((i-1)*n2 + j, (k-1)*n2 + l) = 0.0d0
+                           Q((i-1)*n2 + j, (k-1)*n2 + l) = 1.0d0
                         else
                            Q((i-1)*n2 + j, (k-1)*n2 + l) = -1.0d0 *
      $                          tscorn(omega1(i,k), omega2(j,l))

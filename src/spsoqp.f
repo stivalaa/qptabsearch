@@ -12,7 +12,7 @@
 *
 * LAPACK and BLAS are also required.
 *
-* $Id: spsoqp.f 2076 2009-03-03 03:30:40Z astivala $
+* $Id: spsoqp.F 3240 2010-01-18 03:28:54Z alexs $
 *=======================================================================
 
       subroutine solvqp(Q, ldq, A, lda, m, n,  b, c, x, y, info)
@@ -166,9 +166,12 @@
       double precision XX(nmax,nmax),AA(mmax,nmax)
 *     ..
 *     .. Intrinsic Functions ..
-!      intrinsic min,abs,max,dsqrt,dble,RANDOM_NUMBER
-      intrinsic rand,min,abs,max,dsqrt,dble,srand
-!      intrinsic min,abs,max,dsqrt,dble
+      intrinsic min,abs,max,dsqrt,dble
+#if defined(__INTEL_COMPILER) || defined(__PORTLAND_COMPILER)
+      intrinsic RANDOM_NUMBER
+#else
+      intrinsic rand,srand
+#endif
 *     ..
 *     .. External Subroutines and Functions ..
       external spphs1,spphs2,drecip,demvv
@@ -344,9 +347,11 @@ C      call srand(1)
       
 *     use y1  as RHS for linear system
       do 800 j = 1, n
-!         CALL RANDOM_NUMBER(y1(j))
+#if defined(__INTEL_COMPILER) || defined(__PORTLAND_COMPILER)
+         CALL RANDOM_NUMBER(y1(j))
+#else
          y1(j) = dble(rand(0))
-C         y1(j) = 0.5d0
+#endif
  800  continue
       do 810 j = n+1, n+m
          y1(j) = 0.0d0

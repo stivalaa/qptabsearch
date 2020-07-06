@@ -22,7 +22,7 @@
 *     put one vector on main diagonal of a matrix
 *     and use Level 2 BLAS subroutine DGBMV 
 *     Alex Stivala 04July2008.
-*     $Id: demvv.f 1565 2008-07-05 03:32:54Z astivala $
+*     $Id: demvv.F 2969 2009-11-22 01:29:39Z astivala $
 *
 * Arguments
 * =========

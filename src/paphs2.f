@@ -10,7 +10,7 @@
 * This uses sparse symmetric linear solver PARDISO
 * in the Intel Math Kernel Library (MKL) (10.1.0).
 *
-* $Id: paphs2.f 2199 2009-04-03 06:33:11Z astivala $
+* $Id: paphs2.F 2969 2009-11-22 01:29:39Z astivala $
 *=======================================================================
 
       subroutine paphs2(Q, ldq, A, lda, m, n, c, alpha, beta, lambda,

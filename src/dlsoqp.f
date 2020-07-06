@@ -13,7 +13,7 @@
 * uses just LAPACK so does not use sparseness (hence no 'sp' prefix
 * on name, 'dl' is for 'dense LAPACK').
 *
-* $Id: dlsoqp.f 2076 2009-03-03 03:30:40Z astivala $
+* $Id: dlsoqp.F 3240 2010-01-18 03:28:54Z alexs $
 *=======================================================================
 
       subroutine solvqp(Q, ldq, A, lda, m, n,  b, c, x, y, info)
@@ -158,9 +158,12 @@
      $     Ewk(mmax+nmax, mmax+nmax)
 *     ..
 *     .. Intrinsic Functions ..
-!      intrinsic min,abs,max,dsqrt,dble,RANDOM_NUMBER
-      intrinsic rand,min,abs,max,dsqrt,dble,srand
-!      intrinsic min,abs,max,dsqrt,dble
+      intrinsic min,abs,max,dsqrt,dble
+#if defined(__INTEL_COMPILER) || defined(__PORTLAND_COMPILER)
+      intrinsic RANDOM_NUMBER
+#else
+      intrinsic rand,srand
+#endif
 *     ..
 *     .. External Subroutines and Functions ..
       external dlphs1,dlphs2,drecip,demvv
@@ -307,8 +310,11 @@ C      call srand(1)
 
 *     use first column of F as RHS for linear system, also solution
       do 800 j = 1, n
-!         CALL RANDOM_NUMBER(F(j,1))
+#if defined(__INTEL_COMPILER) || defined(__PORTLAND_COMPILER)
+         CALL RANDOM_NUMBER(F(j,1))
+#else
          F(j,1) = dble(rand(0))
+#endif
  800  continue
 C      call rand55(n, F)
       do 810 j = n+1, n+m
