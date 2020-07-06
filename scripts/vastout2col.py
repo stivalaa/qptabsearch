@@ -18,13 +18,16 @@
 # available from
 # http://migale.jouy.inra.fr/outils/mig/vast/
 #
-# $Id: vastout2col.py 2032 2008-11-23 05:00:03Z astivala $
+# $Id: vastout2col.py 3603 2010-05-04 04:47:51Z alexs $
 #
 
 import os,sys
+from itertools import groupby
 
 value_header = False
 dbid = None
+
+scorelist = []  # list of (targetpdbid,Pcli) tuples
 
 for line in sys.stdin:
     splitline = line.split()
@@ -35,6 +38,20 @@ for line in sys.stdin:
         value_header = True
     elif value_header:
         Pcli = splitline[6]
-        sys.stdout.write('%s    %s\n' % (dbid, Pcli))
+        scorelist.append((dbid, Pcli))
         value_header = False
+
+# for reasons I don't entirely understand 
+# there are sometimes two or more entries for the same target
+# with differing Pcli and other values. We will also choose the one
+# with highest Pcli
+single_scorelist = []
+targetpdbid_group_iter = groupby(sorted(scorelist), lambda t : t[0])
+for (targetpdbid, targetpdbid_iter) in targetpdbid_group_iter:
+    maxPcli = max([Pcli for (pdbid,Pcli) in targetpdbid_iter])
+    single_scorelist.append((targetpdbid, maxPcli))
+
+
+for (targetpdbid, Pcli) in single_scorelist:
+    sys.stdout.write('%s    %s\n' % (targetpdbid, Pcli))
 

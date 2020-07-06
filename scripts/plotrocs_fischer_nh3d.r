@@ -18,7 +18,7 @@
 #   Bioinformatics 21(20):3940-3941
 # 
 # 
-# $Id: plotrocs_fischer_nh3d.r 2165 2009-03-29 20:46:58Z astivala $
+# $Id: plotrocs_fischer_nh3d.r 2376 2009-05-14 01:40:32Z astivala $
  
 
 library(ROCR)
@@ -123,10 +123,4 @@ for (i in 1:length(nh3d_class_files)) {
 #lines(c(0,1),c(0,1),type='l',lty=3)
 legend('bottomright', col=colorvec, lty=ltyvec, legend=namevec) 
 dev.off()
-
-# embed fonts for BMC Bioinformatics
-embedFonts('rocs_fischer_fold.eps')
-embedFonts('rocs_fischer_class.eps')
-embedFonts('rocs_nh3d_arch.eps')
-embedFonts('rocs_nh3d_class.eps')
 

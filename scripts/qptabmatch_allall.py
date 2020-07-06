@@ -27,7 +27,7 @@
 # 
 #
 # Usage:
-#     qptabmatch_allall.py query_directory dbfile results_directory
+#     qptabmatch_allall.py program query_directory dbfile results_directory
 #
 # query_directory is the directory containing .tableaudistmatrix files,
 # as built with build_fischer_db.sh for example.
@@ -36,7 +36,7 @@
 #
 # results_dirctory is a directory to write the output to.
 # Each query (.tableauxdistmatrix file) results in one file created
-# with .out suffix
+# with .out suffix, and stderr in file with .err suffix
 # in the output directory, containing the results from that query
 # against the db.
 # Each file is created by tsrchd_sparse (see tsrchd.f for output format):
@@ -44,12 +44,7 @@
 # WARNING: these files overwritten if they exist.
 # results_directory is created if it does not exist.
 #
-# Environment variables:
-#
-#   PATH must contain the location of tsrchd_sparse.
-#
-#
-# $Id: qptabmatch_allall.py 1894 2008-09-15 08:37:50Z astivala $
+# $Id: qptabmatch_allall.py 3583 2010-04-29 02:11:46Z alexs $
 # 
 ###############################################################################
 
@@ -59,7 +54,7 @@ def usage(progname):
     """
     Print usage message and exit
     """
-    sys.stderr.write("Usage: " + progname + " <query_directory> <db_file> <results_directory>\n")
+    sys.stderr.write("Usage: " + progname + " <tsrchd_program> <query_directory> <db_file> <results_directory>\n")
     sys.exit(1)
 
     
@@ -67,12 +62,13 @@ def main():
     """
     main for qptabmatch_allall.py
     """
-    if len(sys.argv) != 4:
+    if len(sys.argv) != 5:
         usage(os.path.basename(sys.argv[0]))
 
-    query_directory = sys.argv[1]
-    db_file  = sys.argv[2]
-    results_directory = sys.argv[3]
+    tsrchd_program = sys.argv[1]    
+    query_directory = sys.argv[2]
+    db_file  = sys.argv[3]
+    results_directory = sys.argv[4]
 
     if not os.path.exists(results_directory):
         os.mkdir(results_directory)
@@ -87,7 +83,9 @@ def main():
         qid = open(qfile).readline()[:8].lstrip().rstrip()
         outfile = os.path.join(results_directory, 
                         os.path.splitext(os.path.basename(qfile))[0] + '.out' )
-        tsrchd_in = os.popen('tsrchd_sparse >'+ outfile, 'w')
+        errfile = os.path.join(results_directory, 
+                        os.path.splitext(os.path.basename(qfile))[0] + '.err' )
+        tsrchd_in = os.popen('/usr/bin/time ' + tsrchd_program + ' > '+ outfile + ' 2> ' + errfile, 'w')
         tsrchd_in.write(db_file + '\n')   # name of db file
         tsrchd_in.write('T T F\n') # LTYPE LORDER LSOLN
         tsrchd_in.write(open(qfile).read()) # tableau+distmatrix of qfile

@@ -1,26 +1,25 @@
 #!/usr/bin/env python
 #
 #
-# rocrfischer.py - Output score+label table for results on Fischer dataset
+# rocrcops.py - Output score+label table for results on COPS dataset
 #
-# File:    rocrfischer.py
+# File:    rocrcops.py
 # Author:  Alex Stivala
-# Created: September 2008
+# Created: May 2010
 #
-# Evaluate structure search for all against all matching
-# for the Fischer data set (Fischer et al 1996 Pac. Symp. Biocomput. 300-318))
-# as per Pelta et all 2008 BMC Bioinformatics 9:161
-# Output a table of scores and true class labels (binary: in or not in same
-# class/fold) , for use with R CRAN package ROCR
+# Evaluate structure search for COPS benchmark data set
+# (Frank et al. 1999 "COPS Benchmark: interactive analysis of database 
+# search methods" Bioinformatics 26(4):574-575) available from
+# http://benchmark.services.came.sbg.ac.at/
 #
-# $Id: rocrfischer.py 3603 2010-05-04 04:47:51Z alexs $
+# $Id: rocrcops.py 3635 2010-05-12 06:48:14Z alexs $
 # 
 #
 
 """
 Write scores from structure search method and actual class labels
 (0/1 for same/different fold as query).
-Using Fischer Table II as the gold standard at fold or class level
+Using COPS benchmark true positives as gold standard.
 
 Output is to stdout in a format that is easily usable in R with the
 read.table() function, i.e. we use '#' to prefix lines not to be parsed,
@@ -36,13 +35,55 @@ import getopt
 from itertools import groupby
 
 from tsevalutils import parse_searchresult,iter_searchresult
-from fischer_tables import FISCHER_ID_FOLD_DICT,FISCHER_FOLD_IDLIST_DICT,FISCHER_ID_CLASS_DICT,FISCHER_CLASS_IDLIST_DICT
+
+
+#-----------------------------------------------------------------------------
+#
+# Constants
+#
+#-----------------------------------------------------------------------------
+
+# The true positives are stored in a text file, not embedded here
+
+COPS_DIR = "/home/alexs/phd/qptabsearch/data/COPS/"
+COPS_TP_FILE = COPS_DIR + "cops.truepositives"
+COPS_QUERYLIST = COPS_DIR + "cops.querylist"
+COPS_DBLIST = COPS_DIR + "cops.dblist"
 
 #-----------------------------------------------------------------------------
 #
 # Function definitions
 #
 #-----------------------------------------------------------------------------
+
+def parse_cops_tp_file(fname):
+    """
+    Parse the COPS true positives file (copied from COPS readme.txt file).
+    Each (whitespace delmited) line starts with query id then has
+    (exactly 6) true positives for that query.
+    Comment lines starting with # are ignored.
+
+    For conveniene for methods that mess with case of identifiers,
+    everything is converted to lowercase here.
+    
+    Parameters:
+       filename - name of COPS true positives text file to parse
+
+    Return value:
+       dict { queryid : tp_list } where queryid is query structure name
+          and tp_list is list of the true positives structure names for
+          that query.
+    """
+    tp_dict = {}
+    for line in open(fname):
+        if line[0] == '#':
+            continue
+        sline = line.split()
+        if len(sline) < 6:
+            sys.stderr.write('bad line in COPS tp file: %s\n' % line)
+            continue
+        tp_dict[sline[0].lower()] = [s.lower()  for s in sline[1:]]
+    return tp_dict
 
 #-----------------------------------------------------------------------------
 #
@@ -55,9 +96,8 @@ def usage(progname):
     Print usage message and exit
     """
     
-    sys.stderr.write("Usage: " +progname + " [-cmnv] [-z score] "
+    sys.stderr.write("Usage: " +progname + " [-mnv] [-z score] "
                      "  <outdir>\n")
-    sys.stderr.write('  -c class level not fold level evaluation\n')
     sys.stderr.write('  -m read multiquery file on stdin\n')
     sys.stderr.write('  -n negate scores (so that most -ve is best)\n')
     sys.stderr.write('  -v verbose messages to stderr\n')
@@ -67,12 +107,11 @@ def usage(progname):
     
 def main():
     """
-    main for rocfischer.py
+    main for rocrcops.py
 
-    Usage: rocfischer.py [-cmnv] [-z score]   <outdir>
+    Usage: rocrcops.py [-mnv] [-z score]   <outdir>
 
     
-    -c evaluate at class level rather than default fold level
     -v turns on debug output to stderr
     -n negate all scores (so that most -ve is best)
     -m read multiquery file (all query results in one file) from stdin
@@ -121,6 +160,10 @@ def main():
 
     outdir = args[0]
 
+    cops_truepositives = parse_cops_tp_file(COPS_TP_FILE)
+    cops_dblist = [line.rstrip().lower() for line in open(COPS_DBLIST)]
+    cops_querylist = [line.rstrip().lower() for line in open(COPS_QUERYLIST)]
+    
     # build dict of search results, one for each query
     # and corresponding dict of gold standard results
 
@@ -144,10 +187,7 @@ def main():
 
         for (query_id, result_iter) in query_group_iter:
             try:
-                if use_class:
-                    goldstd_ids = FISCHER_CLASS_IDLIST_DICT[FISCHER_ID_CLASS_DICT[query_id.lower()]]
-                else:
-                    goldstd_ids = FISCHER_FOLD_IDLIST_DICT[FISCHER_ID_FOLD_DICT[query_id.lower()]]
+                goldstd_ids = cops_truepositives[query_id.lower()]
             except KeyError:
                 if verbose:
                     sys.stderr.write('skipped ' + query_id + '\n')
@@ -162,10 +202,7 @@ def main():
             (searchresult,commentlist) = parse_searchresult(result_fh, negateflag)
             result_fh.close()
             try:
-                if use_class:
-                    goldstd_ids = FISCHER_CLASS_IDLIST_DICT[FISCHER_ID_CLASS_DICT[query_id]]
-                else:
-                    goldstd_ids = FISCHER_FOLD_IDLIST_DICT[FISCHER_ID_FOLD_DICT[query_id]]
+                goldstd_ids = cops_truepositives[query_id]
             except KeyError:
                 if verbose:
                     sys.stderr.write('skipped ' + query_id + '\n')
@@ -200,7 +237,7 @@ def main():
 
         if bottom_score != None:
             lowscore_domains = 0
-            for domid in FISCHER_ID_FOLD_DICT.keys():
+            for domid in cops_dblist:
                 if domid.lower() == query_id.lower():
                     continue #skip self-query
                 if domid.lower() not in [d.lower() for (s,d) in searchresult]:
@@ -223,22 +260,19 @@ def main():
     # give NO results for some queries, which is a major hassle specially
     # for StAR which requires all methods to have all results.
     # so we'll just give the bottom score to all those matchings
-    if qcount < len(list(FISCHER_ID_FOLD_DICT.iterkeys())):
-        sys.stderr.write("WARNING: only %d of %d queries have results\n" % (qcount, len(list(FISCHER_ID_FOLD_DICT.iterkeys()))))
-        for qid in FISCHER_ID_FOLD_DICT.iterkeys():
+    if qcount < len(cops_querylist):
+        sys.stderr.write("WARNING: only %d of %d queries have results\n" % (qcount, len(cops_querylist)))
+        for qid in cops_querylist:
             if qid not in searchresult_dict.iterkeys():
                 sys.stderr.write("query %s has no results\n" %qid)
                 if bottom_score != None:
                     sys.stdout.write('# %s\n' % qid) # XXX
-                    if use_class:
-                        goldstd_ids = FISCHER_CLASS_IDLIST_DICT[FISCHER_ID_CLASS_DICT[qid.lower()]]
-                    else:
-                        goldstd_ids = FISCHER_FOLD_IDLIST_DICT[FISCHER_ID_FOLD_DICT[qid.lower()]]
+                    goldstd_ids = cops_truepositives[qid.lower()]
                     goldstd_dict[qid.lower()] = goldstd_ids
                     goldstd_pos_dict = dict([(domainid,True) for domainid in 
                                              goldstd_dict[qid.lower()]])
                     lowscore_domains = 0
-                    for domid in FISCHER_ID_FOLD_DICT.keys():
+                    for domid in cops_dblist:
                             if domid.lower() == qid.lower():
                                 continue #skip self-query
                             lowscore_domains += 1

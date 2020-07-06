@@ -7,7 +7,7 @@
 # Author:  Alex Stivala
 # Created: November 2008
 #
-# $Id: scopdominfo.py 2098 2009-03-11 05:44:21Z astivala $
+# $Id: scopdominfo.py 3009 2009-12-08 03:01:48Z alexs $
 # 
 ###############################################################################
 
@@ -48,17 +48,7 @@ import sys,os
  
 from Bio.SCOP import *
 
-
-
-#-----------------------------------------------------------------------------
-#
-# Constants
-#
-#-----------------------------------------------------------------------------
-
-SCOP_DIR     = "/local/charikar/SCOP"
-#SCOP_DIR     = "/usr/local/share/SCOP"
-SCOP_VERSION = 1.73
+from pathdefs import SCOP_DIR,SCOP_VERSION
 
 #-----------------------------------------------------------------------------
 #

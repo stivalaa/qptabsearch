@@ -3,11 +3,11 @@
 #
 # norms.py - functions to normalize tableau match score by protein size
 #
-# File:    pairwise2matrix.py
+# File:    norms.py
 # Author:  Alex Stivala
 # Created: September 2008
 #
-# $Id: norms.py 1964 2008-10-08 06:20:53Z astivala $
+# $Id: norms.py 3585 2010-04-29 03:56:03Z alexs $
 # 
 ###############################################################################
 """
@@ -27,7 +27,7 @@
 
 """
 import sys,os,glob
-import Numeric
+import numpy.oldnumeric as Numeric
 
 
 

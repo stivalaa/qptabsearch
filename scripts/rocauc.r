@@ -30,7 +30,7 @@
 # to implement it here.
 #
 
-# $Id: rocauc.r 2054 2009-01-18 22:43:55Z astivala $
+# $Id: rocauc.r 3606 2010-05-04 06:03:55Z alexs $
 
 library(ROCR)
 
@@ -57,14 +57,16 @@ compute_auc_error <- function(tab)
     nA <- length(x)
     nN <- length(y)
     stopifnot(nA + nN == length(tab$label))
+    nA <- as.double(nA)
+    nN <- as.double(nN)
     U <- wilcox$statistic  # Mann-Whitney U statistic
     theta <- U / (nA * nN) # AUC
     theta2 <- theta*theta
     Q1 <- theta / (2 - theta)
     Q2 <- 2*theta2 / (1 + theta)
-    SE2 = (theta*(1-theta) + (nA - 1)*(Q1 - theta2) + (nN - 1)*(Q2 - theta2)) /
+    SE2 <- (theta*(1-theta) + (nA - 1)*(Q1 - theta2) + (nN - 1)*(Q2 - theta2)) /
           (nA*nN)
-    SE = sqrt(SE2)
+    SE <- sqrt(SE2)
 
     retval <- list()
     retval$auc <- theta

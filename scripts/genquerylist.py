@@ -7,7 +7,7 @@
 # Author:  Alex Stivala
 # Created: November 2008
 #
-# $Id: genquerylist.py 2037 2008-11-25 00:59:29Z astivala $
+# $Id: genquerylist.py 3009 2009-12-08 03:01:48Z alexs $
 # 
 ###############################################################################
 
@@ -52,17 +52,8 @@ import random
  
 from Bio.SCOP import *
 
+from pathdefs import SCOP_DIR,SCOP_VERSION
 
-
-#-----------------------------------------------------------------------------
-#
-# Constants
-#
-#-----------------------------------------------------------------------------
-
-SCOP_DIR     = "/local/charikar/SCOP"
-#SCOP_DIR     = "/usr/local/share/SCOP"
-SCOP_VERSION = 1.73
 
 #-----------------------------------------------------------------------------
 #

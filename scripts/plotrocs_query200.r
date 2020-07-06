@@ -17,7 +17,7 @@
 #   Bioinformatics 21(20):3940-3941
 # 
 # 
-# $Id: plotrocs_query200.r 2208 2009-04-07 03:44:11Z astivala $
+# $Id: plotrocs_query200.r 2376 2009-05-14 01:40:32Z astivala $
  
 
 library(ROCR)
@@ -75,6 +75,3 @@ legend('bottomright', col=colorvec, lty=ltyvec, legend=namevec)
 #lines(c(0,1),c(0,1),type='l',lty=3)
 dev.off()
 
-
-# embed fonts for BMC Bioinformatics
-embedFonts('rocs_query200.eps')

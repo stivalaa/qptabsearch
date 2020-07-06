@@ -1,22 +1,19 @@
 #!/usr/bin/env python
 ###############################################################################
 #
-# scopsuperfamilyinfo.py - Report information folds and classes of a
-#                          list of SCOP sccs identifiers
+# getdomainsinsf.py - Get a domain in each superfamily specfied on stdin.
 #
-# File:    scopsuperfamilyinfo.py
+# File:    getdomainsinsf.py
 # Author:  Alex Stivala
-# Created: March 2009
+# Created: February 2010
 #
-# $Id: scopsuperfamilyinfo.py 3009 2009-12-08 03:01:48Z alexs $
+# $Id: getdomainsinsf.py 3322 2010-02-11 05:46:13Z alexs $
 # 
 ###############################################################################
 
 """
-Report information on the folds, superfamilies and classes of a list
-of SCOP superfamily identifiers in the form of sccs (SCOP Concise
-Classification Strings) identifeirs
-(e.g. d.58.1)
+For each SCOP sccs superfamily string (e.g. 'd.58.1') read from stdin,
+output a domain in the 95% nr ASTRAL subset.
 
 See usage in docstring for main()
 
@@ -48,6 +45,8 @@ Other files there are indices built by Bio.SCOP when first used.
 """
 
 import sys,os
+import getopt
+import random
  
 from Bio.SCOP import *
 
@@ -61,31 +60,38 @@ from pathdefs import SCOP_DIR,SCOP_VERSION
 #-----------------------------------------------------------------------------
 
 
-def write_scopsuperfamily_info(scopsccs_list, fh, scop):
+def get_domain_for_each_sf(sccs_list, scop, astral):
    """
-   Write information about the list of SCOP sccs ids
-   in the scopsccs_list to fh. For each sccs id write the
-   superfamily and fold description.
+   For each superfamily named by sccs in the sccs_list,
+   return a domain sid in that
+   superfamily in the 95% nr ASTRAL subset.
 
    Parameters:
-      sccsid_list - list of SCOP superfamilies (sccs ids)
-      fh - open (write) filehandle to write to
+      sf_list - list of Bio.SCOP superfamily objects
       scop - previously built Bio.SCOP Scop instance
+      astral - previously build Bio.SCOP Astral instance
 
    Return value:
-      None.
+      list of SCOP sids, one for each superfamily.
    """
+   
    # Bio.SCOP actually doesn't seem to have a facility to look up by
    # sccs so we'll build a dictionary ourselves of all superfamilies
    # keyed by sccs
    all_superfamilies = scop.getRoot().getDescendents('sf')
    sccs_dict = dict([(sf.sccs, sf) for sf in all_superfamilies])
 
-   for sccs in scopsccs_list:
-       sf = sccs_dict[sccs]
-       fold = sf.getAscendent('fold')
-       fh.write('%s\t%s\t%s\n' % (sf.sccs, sf.description, fold.description))
-   
+   domain_sids = []
+   for sccs in sccs_list:
+      sf = sccs_dict[sccs]
+      domain_list = [ dom for dom in sf.getDescendents('domain')
+                      if astral.isDomainInId(dom, 95) ]
+#      sys.stderr.write('xxx ' + str(domain_list))
+      if len(domain_list) > 0:
+         domain = random.choice(domain_list)
+         domain_sids.append(domain.sid)
+         
+   return domain_sids
 
 #-----------------------------------------------------------------------------
 #
@@ -98,32 +104,38 @@ def usage(progname):
     Print usage message and exit
     """
     
-    sys.stderr.write("Usage: " +progname + 
-                     " < sccslist\n")
+    sys.stderr.write("Usage: " +progname + "\n")
     sys.exit(1)
 
     
 def main():
     """
-    main for scopsuperfamilyinfo.py
+    main for getdomainsinsf.py
 
-    Usage: scopsuperfamilyinfo.py  < sccslist
+    Usage: getdomainsinsf.py 
 
-    
-    The list of SCOP sccs superfamily strings (e.g. 'd.58.1')
-    is read from stdin
-    Output is written to stdout.
+
+    List of SCOP superfamily ids (sccs) is read from stdin.
+    The list of SCOP domain ids (sids) is printed to stdout.
     """
+    global verbose
+    verbose = False
+    
+    use_nonredundant = False
+
     if len(sys.argv) != 1:
-        usage(os.path.basename(sys.argv[0]))
+       usage(os.path.basename(sys.argv[0]))
+       
 
-
-    # read SCOP data
+    # read SCOP and ASTRAL data
     scop = Scop(dir_path=SCOP_DIR,version=SCOP_VERSION)
-
+    astral = Astral(dir_path=SCOP_DIR,version=SCOP_VERSION,scop=scop)
+       
     sccs_list = sys.stdin.read().split('\n')[:-1]
-    write_scopsuperfamily_info(sccs_list, sys.stdout, scop)
-
+    sid_list = get_domain_for_each_sf(sccs_list, scop, astral)
+    for sid in sid_list:
+       sys.stdout.write(sid + '\n')
+    
             
 if __name__ == "__main__":
     main()

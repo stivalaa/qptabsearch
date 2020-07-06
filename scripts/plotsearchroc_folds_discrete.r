@@ -1,7 +1,7 @@
 # R script for plotting ROC curve for different tableau search methods
 # Alex Stivala
 # July 2008
-# $Id: plotsearchroc_folds_discrete.r 2165 2009-03-29 20:46:58Z astivala $
+# $Id: plotsearchroc_folds_discrete.r 2376 2009-05-14 01:40:32Z astivala $
 
 
 #
@@ -50,8 +50,4 @@ legend('bottomright', col=colorvec, lty=ltyvec, legend=namevec)
 
 
 dev.off()
-
-# embed fonts for BMC Bioinformatics
-embedFonts('searchroc_folds_discrete.eps')
-
 
