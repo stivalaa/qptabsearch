@@ -12,7 +12,7 @@
 #
 # Usage: mkfischer3dtabs_all.sh
 #
-# $Id: mkfischer3dtabs_all.sh 2204 2009-04-06 00:23:10Z astivala $
+# $Id: mkfischer3dtabs_all.sh 2996 2009-11-30 05:25:05Z alexs $
 #
 
 if [ $# -ne 0 ]; then
@@ -40,6 +40,7 @@ EOF
         mkfischer3dtab.sh $dataset $level >  $tmpfile
         tabcolmax.sh $tmpfile 3 >> ${outfile}
         cat <<EOF >>${outfile}
+\hline
 \end{tabular}
 EOF
    done

@@ -16,7 +16,7 @@
 #
 # Output is to stdout
 #
-# $Id: mkauctabrow.sh 2090 2009-03-08 04:04:15Z astivala $
+# $Id: mkauctabrow.sh 3612 2010-05-05 01:32:37Z alexs $
 #
 
 if [ $# -ne 1 ]; then
@@ -26,18 +26,14 @@ fi
 
 statsfile=$1
 
-# Hanley-McNeil stuff commented out since some strange problem in R program
-# is giving "integer overflow" and getting NA for error values - 
-# FIXME: need to fix this and get error values
 
-auc=`fgrep 'RROC          AUC' ${statsfile} | cut -d= -f2`
-#auc=`fgrep 'Hanley-McNeil AUC' ${statsfile} | cut -d= -f2`
-#stderror=`fgrep 'std. error' ${statsfile} | cut -d= -f2`
-#interval95=`fgrep '95% CI' ${statsfile} | cut -d= -f2`
-#low95=`echo "${interval95}" | cut -d, -f1`
-#high95=`echo "${interval95}" | cut -d, -f2`
+#auc=`fgrep 'RROC          AUC' ${statsfile} | cut -d= -f2`
+auc=`fgrep 'Hanley-McNeil AUC' ${statsfile} | cut -d= -f2`
+stderror=`fgrep 'std. error' ${statsfile} | cut -d= -f2`
+interval95=`fgrep '95% CI' ${statsfile} | cut -d= -f2`
+low95=`echo "${interval95}" | cut -d, -f1`
+high95=`echo "${interval95}" | cut -d, -f2`
 
-#printf "%6.3f & %5.3f & %6.3f & %6.3f " $auc $stderror $low95 $high95
-printf "%6.3f " $auc 
-echo '\\\\'
+printf "%6.3f & %5.3f & %6.3f & %6.3f " $auc $stderror $low95 $high95
+echo \\\\
 

@@ -20,10 +20,13 @@
 #
 
 # location of ASTRAL SCOP pdbstyle files
-ASTRAL_DIR=/local/charikar/ASTRAL/pdbstyle-sel-gs-bib-95-1.73
+#ASTRAL_DIR=/usr/local/ASTRAL/pdbstyle-sel-gs-bib-95-1.75
+ASTRAL_DIR=/usr/local/ASTRAL/pdbstyle-1.75
 
 # tableaux+distmatrix db file
-TABLEAUX_DB=/local/charikar/astivala/tableauxdb/astral/tableauxdistmatrixdb.ascii
+#TABLEAUX_DB=/home/alexs/tableauxdb/ASTRAL-sel-gs-bib-95-1.75/omegadistmatrixdb.ascii
+#TABLEAUX_DB=/home/alexs/tableauxdb/ASTRAL-sel-gs-bib-95-1.75/tableauxdistmatrixdb.sorted.ascii
+TABLEAUX_DB=/home/alexs/tableauxdb/minlen4-ASTRAL-sel-gs-bib-95-1.75/tableauxdistmatrixdb.ascii
 
 if [ $# -ne 1 ]; then
     echo "Usage: $0  outdir < querylist" 2>&1
@@ -36,7 +39,9 @@ if [ ! -d ${outdir} ]; then
 fi
 
 # pytableaucreate.py options
-tabopts="-35 -f -t dssp -p none"
+#tabopts="-35 -f -t dssp -p none"
+tabopts="-m4 -35 -f -t dssp -p none"
+#tabopts="-n -35 -f -t dssp -p none"
 
 while read scopsid
 do

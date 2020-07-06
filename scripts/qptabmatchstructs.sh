@@ -14,7 +14,7 @@
 # file with structures superimposed in cwd.
 #
 # Usage:
-#     qptabmatchstructs.sh [-skq] [-e sse_num_list]
+#     qptabmatchstructs.sh [-skquh] [-e sse_num_list]
 #                                        struct1.pdb struct2.pdb > output.pml
 #
 #     -s: write PDB file with superposition to cwd, filenme is 
@@ -28,6 +28,8 @@
 #     -u: randomly permute the rows+columns of the struct1 tableau+distmatrix
 #         (This is for testing non-sequential tableau matching; so isn't
 #         useful except with -q)
+#
+#     -h: use fast heuristic (simulated annealing) version instead of QP
 #
 #     -e sse_num_list: list of SSE sequential numbers to select from
 #                      struct1 reather than whole structure
@@ -58,7 +60,7 @@
 # matching between two structures and examining the result correspondence
 # between SSEs.
 # 
-# $Id: qptabmatchstructs.sh 2042 2008-11-26 23:55:39Z astivala $
+# $Id: qptabmatchstructs.sh 3705 2010-05-23 02:45:50Z alexs $
 # 
 ###############################################################################
 
@@ -87,10 +89,13 @@ use_ordering=1
 sse_num_list=''
 sse_num_list_opt=''
 randomly_permute=0
+heuristic=0
 
-while getopts 'skqe:u' opt
+while getopts 'hskqe:u' opt
 do
     case $opt in
+    h) heuristic=1
+    ;;
     s) writepdb=1
     ;;
     k) use_hk=1
@@ -144,6 +149,14 @@ fi
 
 qsize=`awk 'NR == 3 {print $2}' < ${tmpfile1}`
 
+if [ $heuristic -eq 0 ]; then
+    PROGRAM=tsrchd_sparse
+    solnremap_stage="soln2ssemap.py -q ${qsize}"
+else
+    PROGRAM="cudaSaTabsearch -c -r4096"
+    solnremap_stage=cat  # outputs sse map directly, no need to convert
+fi
+
 if [ -z ${sse_num_list} ]; then
     remap_stage="cat"  # no need to remap SSE nums: stdin to stdout unchanged
 else
@@ -156,10 +169,10 @@ else
 fi
 
 if [ $writepdb -eq 1 ]; then
-    tsrchd_sparse < ${tmpfile1} | soln2ssemap.py -q ${qsize} | ${perm_remap_stage}  | ${remap_stage} | tee ${tmpfile3} |  ssemap2pml.py -s -u ${struct1} -b ${struct2}
+    $PROGRAM  < ${tmpfile1} | ${solnremap_stage} |  ${perm_remap_stage}  | ${remap_stage} | tee ${tmpfile3} |  ssemap2pml.py -s -u ${struct1} -b ${struct2}
     superimposessemap.py -u ${struct1} -b ${struct2} -o . < ${tmpfile3} >/dev/null
 else
-    tsrchd_sparse < ${tmpfile1} | soln2ssemap.py -q ${qsize} | ${perm_remap_stage} | ${remap_stage} | ssemap2pml.py -s -u ${struct1} -b ${struct2}
+    $PROGRAM  < ${tmpfile1} | ${solnremap_stage} |  ${perm_remap_stage} | ${remap_stage} | ssemap2pml.py -s -u ${struct1} -b ${struct2}
 fi
 
 rm -f ${tmpfile1} ${tmpfile2} ${tmpfile3} ${tmpfile4}

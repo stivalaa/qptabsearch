@@ -16,7 +16,7 @@
 #
 # Output is to stdout
 #
-# $Id: mkfischer3dtabrow.sh 1962 2008-10-07 06:23:51Z astivala $
+# $Id: mkfischer3dtabrow.sh 3686 2010-05-17 07:31:00Z alexs $
 #
 
 if [ $# -ne 1 ]; then
@@ -33,5 +33,5 @@ low95=`echo "${interval95}" | cut -d, -f1`
 high95=`echo "${interval95}" | cut -d, -f2`
 
 printf "%6.3f & %5.3f & %6.3f & %6.3f " $auc $stderror $low95 $high95
-echo '\\\\'
+echo '\\'
 

@@ -15,12 +15,12 @@
 #   astral_root is the root of the ASTRAL SCOP pdbstyle hierarchy.
 #
 #
-# $Id: build_tops_files.sh 2101 2009-03-16 03:35:08Z astivala $
+# $Id: build_tops_files.sh 3617 2010-05-05 06:13:27Z alexs $
 
 # location of TOPS directory, contains tops.def etc.
 # Note all the .dssp and .tops files are temporarily created here,
 # (tops.def has these specifications)
-TOPS_ROOT=/local/charikar/astivala/biosoftware/Tops
+TOPS_ROOT=$HOME/Tops
 
 if [ $# -ne 2 ]; then
     echo "Usage: $0 astral_root outdir" 2>&1
@@ -44,8 +44,11 @@ do
   pdbcode=`echo $sid | cut -c2-5`
   cp $ent pdb${pdbcode}.ent
   dssp pdb${pdbcode}.ent > ${pdbcode}.dssp
-  ${TOPS_ROOT}/bin/Tops $pdbcode
-  mv ${pdbcode}.tops ${outdir}/${sid}.tops
+  # the -C ALL options ensures all chains in one file, otherwise we get
+  # multiple files for genetic domain style e.g. d1pid.1 files (multi chains
+  # in 1 domain)
+  ${TOPS_ROOT}/bin/Tops -C ALL $pdbcode
+  mv ${pdbcode}ALL.tops ${outdir}/${sid}.tops
   rm ${pdbcode}.dssp
   rm pdb${pdbcode}.ent
 done
