@@ -7,7 +7,7 @@ authors:
 - family-names: "Stuckey"
   given-names: "Peter"
 - family-names: "Wirth"
-  given-names: "Tony"
+  given-names: "Anthony"
 title: "Tableau-based protein substructure search using quadratic programming"
 url: https://github.com/stivalaa/qptabsearch
 preferred-citation:
@@ -20,7 +20,7 @@ preferred-citation:
     - family-names: "Stuckey"
       given-names: "Peter"
     - family-names: "Wirth"
-      given-names: "Tony"
+      given-names: "Anthony"
   doi: 10.1186/1471-2105-10-153
   journal: BMC Bioinformatics
   year: 2009
