@@ -39,7 +39,7 @@ include ../common.mk
 -include ../local.mk
 
 # F77 source in all programs
-COMMONF77SRCS = drecip.f demvv.f dvmin.f dvmax.f rand55.f rdistm.f
+COMMONF77SRCS = drecip.f demvv.f dvmin.f dvmax.f rand55.f rdistm.f gumbel.f norm2.f
 
 # F77 source in only the numeric (Omega matrix) versions
 NUMERICF77SRCS = tmatn.f tscorn.f rdtabn.f tsrchn.f
@@ -88,7 +88,7 @@ pardiso:  tsrchd_pardiso tsrchn_pardiso
 
 tsrchn_sparse: $(COMMONF77OBJS) $(NUMERICF77OBJS) $(SPARSEF77OBJS) $(UMFF77OBJS)
 	$(LD) -o tsrchn_sparse $(COMMONF77OBJS) $(NUMERICF77OBJS) $(SPARSEF77OBJS) $(UMFF77OBJS) \
-        $(LDFLAGS) $(LDLIBPATH) $(LDLIBS)
+        $(LDFLAGS) $(LDLIBPATH) $(LDLIBS) $(UMFPACKLIBS)
 
 tsrchn_pardiso: $(COMMONF77OBJS) $(NUMERICF77OBJS) $(PARDISOF77OBJS)
 	$(LD) -o tsrchn_pardiso $(COMMONF77OBJS) $(NUMERICF77OBJS) $(PARDISOF77OBJS) $(LDFLAGS) $(LDLIBPATH) $(LDLIBS) $(PARDISOLIBS)
@@ -99,7 +99,7 @@ tsrchn_dense: $(COMMONF77OBJS) $(NUMERICF77OBJS) $(DENSEF77OBJS)
 
 tsrchd_sparse: $(COMMONF77OBJS) $(DISCRETEF77OBJS) $(SPARSEF77OBJS) $(UMFF77OBJS)
 	$(LD) -o tsrchd_sparse $(COMMONF77OBJS) $(DISCRETEF77OBJS) $(SPARSEF77OBJS) $(UMFF77OBJS) \
-        $(LDFLAGS) $(LDLIBPATH) $(LDLIBS)
+        $(LDFLAGS) $(LDLIBPATH) $(LDLIBS) $(UMFPACKLIBS)
 
 tsrchd_pardiso: $(COMMONF77OBJS) $(DISCRETEF77OBJS) $(PARDISOF77OBJS)
 	$(LD) -o tsrchd_pardiso $(COMMONF77OBJS) $(DISCRETEF77OBJS) $(PARDISOF77OBJS) $(LDFLAGS) $(LDLIBPATH) $(LDLIBS) $(PARDISOLIBS)

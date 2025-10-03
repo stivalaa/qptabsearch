@@ -146,6 +146,7 @@
 !      intrinsic Time,CTime
 #if !defined(__PORTLAND_COMPILER)
        intrinsic CPU_TIME,GETARG
+       intrinsic iargc
 #endif
 *     ..
 *     .. External Subroutines and Functions ..

@@ -19,11 +19,9 @@
 
 # Includes and libraries from UMFPACK (included in SuiteSparse)
 # http://www.cise.ufl.edu/research/sparse/umfpack/
-SUITESPARSE = /local/charikar/astivala/biosoftware/SuiteSparse
-UMFPACKINCS = -I$(SUITESPARSE)/UMFPACK/Include -I$(SUITESPARSE)/UFconfig \
-              -I$(SUITESPARSE)/AMD/Include
-UMFPACKLDIRS = -L$(SUITESPARSE)/UMFPACK/Lib -L$(SUITESPARSE)/AMD/Lib
-##UMFPACKINCS = -I/usr/include/suitesparse
+# https://people.engr.tamu.edu/davis/suitesparse.html
+UMFPACKINCS = -I/usr/include/suitesparse
+UMFPACKLDIRS = 
 UMFPACKLIBS = -lumfpack -lamd
 
 
@@ -45,7 +43,7 @@ MA57OBJS = $(HSL2007DIR)/ma57d.o $(HSL2007DIR)/ma57dsub.o
 MA57LIBS = $(MA57OBJS)  $(METISLIB)
 
 
-FC         = gfortran
+FC         = gfortran -std=gnu -cpp
 FDEBUG     = -g -fbounds-check -O0 -pg
 FOPTIMIZE  = -O3 -funroll-loops
 ifeq ($(MODE),DEBUG)
@@ -57,13 +55,13 @@ CPPFLAGS   = -D_XOPEN_SOURCE=1 -D_XOPEN_SOURCE_EXTENDED=1 $(UMFPACKINCS)
 
 CXX        = g++
 
-CC         = gcc
+CC         = gcc -std=gnu99
 CDEBUG     = -g  -O0 -pg
 COPTIMIZE  = -O3 
 ifeq ($(MODE),DEBUG)
-    CFLAGS     = $(CDEBUG) -ansi -pedantic -Wall
+    CFLAGS     = $(CDEBUG) -pedantic -Wall
 else
-    CFLAGS     = $(COPTIMIZE) -ansi -pedantic -Wall
+    CFLAGS     = $(COPTIMIZE)  -pedantic -Wall
 endif
 #              the following warnings are not implied by -Wall
 CFLAGS     += -Wextra -Wfloat-equal  \
@@ -78,5 +76,5 @@ ifeq ($(MODE),DEBUG)
     LDFLAGS    = -g  -ffortran-bounds-check  $(UMFPACKLDIRS)
     LDFLAGS    += -pg  # for profiler gprof
 endif
-#LDLIBS     = -lm -lblas -llapack
+LDLIBS     = -lm -lblas -llapack 
 
