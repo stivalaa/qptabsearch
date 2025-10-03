@@ -1,0 +1,6 @@
+TAGS
+*.o
+tsrchd_dense
+tsrchd_sparse
+tsrchn_dense
+tsrchn_sparse
