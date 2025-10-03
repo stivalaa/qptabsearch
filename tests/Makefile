@@ -79,7 +79,7 @@ umftst: umftst.o $(COMMONF77OBJS) $(UMFF77OBJS) $(SPARSEF77OBJS)
 
 
 testumfpack: testumfpack.o $(COMMONF77OBJS) $(UMFF77OBJS) $(SPARSEF77OBJS)
-	$(LD) -nofor-main -o testumfpack  testumfpack.o $(COMMONF77OBJS) $(UMFF77OBJS)  $(SPARSEF77OBJS) $(LDFLAGS) $(LDLIBPATH) $(UMFPACKLDIRS) $(UMFPACKLIBS) $(LDLIBS)
+	$(LD)  -o testumfpack  testumfpack.o $(COMMONF77OBJS) $(UMFF77OBJS)  $(SPARSEF77OBJS) $(LDFLAGS) $(LDLIBPATH) $(UMFPACKLDIRS) $(UMFPACKLIBS) $(LDLIBS)
 #	$(LD) -Mnomain  -o testumfpack  testumfpack.o $(COMMONF77OBJS) $(UMFF77OBJS)  $(SPARSEF77OBJS) $(LDFLAGS) $(LDLIBPATH) $(UMFPACKLDIRS) $(UMFPACKLIBS) $(LDLIBS)
 
 testpardiso: testpardiso.o 
