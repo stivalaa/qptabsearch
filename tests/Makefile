@@ -53,8 +53,8 @@ MA57_TESTPROGS = masptest matstsp1 matstsp2
 MA57_TESTOBJS = $(MA57_TESTPROGS:=.o)
 
 #all: tests pardiso_tests
-
-all: tests ma57_tests
+#all: tests ma57_tests
+all: tests
 
 tests: $(TESTPROGS)
 	@for i in $+ ; do \
