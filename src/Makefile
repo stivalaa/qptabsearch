@@ -121,6 +121,7 @@ tags:
 
 clean:
 	$(RM) tsrchn_sparse tsrchn_dense
+	$(RM) tsrchd_sparse tsrchd_dense
 	$(RM) $(OBJS)
 
 include $(DEPENDFILE)
